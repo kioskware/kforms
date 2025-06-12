@@ -3,12 +3,58 @@
 package type
 
 import AbstractForm
-import data.FormData
+import data.binary.BinarySource
 import requirements.ValueRequirement
 import kotlin.reflect.KClass
 
 /**
- * Represents a type of argument.
+ * ## Types
+ *
+ * KWForms provides a set of predefined types that can be used to define the value types of arguments.
+ * These types are used to specify the expected data format for each argument in a form.
+ *
+ * Each type has 4 common properties:
+ * - `kClass`: The class of the value type.
+ * - `typeId`: The ID of the type, which is a unique identifier for the type.
+ * Used for type serialization and deserialization.
+ * - `requirement`: The requirement for the value type,
+ * which is used to specify additional constraints or validation rules for the argument.
+ * - `preProcessor`:
+ * An optional pre-processor function that can be applied to the value before it is validated or used.
+ * This can be used, for example, to trim strings or round numbers.
+ *
+ * KW forms supports variations of the following types:
+ *
+ * | Name | typeId | Kotlin Type | Description | Additional Properties |
+ * | --- | --- | --- | --- | --- |
+ * | Bool | 1 | Boolean | Represents a boolean value (true/false) | - |
+ * | Integer | 2 | Long | Represents an integer value | - |
+ * | Decimal | 3 | Double | Represents a decimal (floating point) value | - |
+ * | Text | 4 | String | Represents a string value | - |
+ * | Binary | 5 | BinarySource | Represents a binary value (e.g., file content) | - |
+ * | EnumType | 6 | Enum&lt;T&gt; | Represents an enum value of type T | Enum class |
+ * | ListType | 7 | List&lt;T&gt; | Represents a list of values of type T | Element type |
+ * | FormType | 8 | FormData&lt;T&gt; | Represents a form of type T | Form factory |
+ * | MapType | 9 | Map&lt;K, V&gt; | Represents a map with keys of type K and values of type V | Key and value types |
+ * | Nullable | n+10 | T? | Represents a nullable type of T | Wrapped type |
+ *
+ * To declare a type for an argument, you can use the predefined types or create your own custom types.
+ * You can also use the `nullable` property to create a nullable version of any type.
+ * ### Example
+ * ```kotlin
+ * val myArgumentType: Type<String> = Type.Text(
+ *     preProcessor = { it.trim() }, // Optional pre-processor to trim whitespace
+ *     requirement = isLengthInRange(1..100) // Optional requirement for length
+ * )
+ * ```
+ * You can also use the provided functions to create types with specific requirements:
+ * ```kotlin
+ * val myIntegerType: Type<Long> = integer(
+ *    preProcessor = { it.coerceIn(0, 100) }, // Optional pre-processor to limit range
+ *    requirement = isInRange(0..100) // Optional requirement for range
+ * )
+ * ```
+ *
  * @param T The type corresponding to the value type of the argument.
  */
 sealed interface Type<T> {
@@ -17,10 +63,12 @@ sealed interface Type<T> {
      * The class of the value type.
      */
     val kClass: KClass<*>
+
     /**
      * The ID of the type.
      */
     val typeId: Byte
+
     /**
      * The requirement for the value type.
      * This is used to specify additional constraints or validation rules for the argument.
@@ -59,11 +107,14 @@ sealed interface Type<T> {
      */
     data object Bool : Basic<Boolean> {
         override val kClass = Boolean::class
-        override val typeId : Byte = 0x01
+        override val typeId: Byte = 0x01
     }
 
     /**
      * Represents an integer type of argument.
+     * @param preProcessor An optional pre-processor function that can be
+     * applied to the integer value before it is validated or used.
+     * @param requirement The value requirement for the integer data.
      */
     data class Integer(
         override val preProcessor: ((Long) -> Long)? = null,
@@ -75,6 +126,9 @@ sealed interface Type<T> {
 
     /**
      * Represents a decimal type of argument. (floating point number)
+     * @param preProcessor An optional pre-processor function that can be
+     * applied to the decimal value before it is validated or used.
+     * @param requirement The value requirement for the decimal data.
      */
     data class Decimal(
         override val preProcessor: ((Double) -> Double)? = null,
@@ -86,6 +140,9 @@ sealed interface Type<T> {
 
     /**
      * Represents a string type of argument.
+     * @param preProcessor An optional pre-processor function that can be
+     * applied to the string before it is validated or used.
+     * @param requirement The value requirement for the string data.
      */
     data class Text(
         override val preProcessor: ((String) -> String)? = null,
@@ -96,35 +153,34 @@ sealed interface Type<T> {
     }
 
     /**
-     * Represents an enum type of argument.
-     * @param enumClass The enum class that the argument represents.
+     * Represents a binary type of argument.
+     * @param preProcessor An optional pre-processor function that can be
+     * applied to the binary data before it is validated or used.
+     * @param requirement The value requirement for the binary data.
      */
-    data class EnumType<T : Enum<T>>(
-        val enumClass: KClass<T>
-    ) : Basic<T> {
-        override val kClass = enumClass
-        override val typeId : Byte = 0x05
-        override val requirement: ValueRequirement<T>? = null
+    data class Binary(
+        override val preProcessor: ((BinarySource) -> BinarySource)? = null,
+        override val requirement: ValueRequirement<BinarySource>? = null
+    ) : Basic<BinarySource> {
+        override val kClass = ByteArray::class
+        override val typeId: Byte = 0x06
     }
 
     /**
-     * Represents a binary type of argument. (byte array)
+     * Represents an enum type of argument.
+     * @param kClass The enum class that the argument represents.
      */
-    data class Binary(
-        val mimeType: String = "application/octet-stream",
-        override val preProcessor: ((ByteArray) -> ByteArray)? = null,
-        override val requirement: ValueRequirement<ByteArray>? = null
-    ) : Basic<ByteArray> {
-        override val kClass = ByteArray::class
-        override val typeId: Byte = 0x06
+    data class EnumType<T : Enum<T>>(
+        override val kClass: KClass<T>,
+    ) : Basic<T> {
+        override val typeId: Byte = 0x05
+        override val requirement: ValueRequirement<T>? = null
     }
 
     /**
      * Represents a list type of argument.
      * @param T The type of the elements in the list.
      * @param elementType The type of the elements in the list.
-     * @param sizeRange The range of valid sizes for the list.
-     * @param duplicatesAllowed Whether duplicates are allowed in the list.
      * @param requirement The value requirement for the list data.
      */
     data class ListType<T>(
@@ -140,14 +196,16 @@ sealed interface Type<T> {
      * Represents a form type of argument.
      * @param T The type of the form.
      * @param formFactory factory function that creates an instance of the form.
+     * @param preProcessor An optional pre-processor function that can be
+     * applied to the form data before it is validated or used.
      * @param requirement The value requirement for the form data.
      */
     data class FormType<T : AbstractForm>(
-        val formFactory: () -> T,
-        override val preProcessor: ((FormData<T>) -> FormData<T>)? = null,
-        override val requirement: ValueRequirement<FormData<T>>? = null
-    ) : Complex<FormData<T>> {
-        override val kClass = FormData::class as KClass<FormData<out T>>
+        val formFactory : () -> T,
+        override val preProcessor: ((T) -> T)? = null,
+        override val requirement: ValueRequirement<T>? = null
+    ) : Complex<T> {
+        override val kClass: KClass<T> by lazy { formFactory()::class as KClass<T> }
         override val typeId: Byte = 0x08
     }
 
@@ -157,6 +215,8 @@ sealed interface Type<T> {
      * @param V The type of the values in the map.
      * @param keyType The type of the keys in the map.
      * @param valueType The type of the values in the map.
+     * @param preProcessor An optional pre-processor function that can be
+     * applied to the map data before it is validated or used.
      * @param requirement The value requirement for the map data.
      */
     data class MapType<K, V>(
@@ -189,21 +249,25 @@ sealed interface Type<T> {
  * This is a shorthand for `Type.Bool`.
  */
 val bool get() = Type.Bool
+
 /**
  * Integer type of argument.
  * This is a shorthand for `Type.Integer`.
  */
 val integer get() = Type.Integer()
+
 /**
  * Decimal type of argument.
  * This is a shorthand for `Type.Decimal`.
  */
 val decimal get() = Type.Decimal()
+
 /**
  * Enum type of argument.
  * This is a shorthand for `Type.Enum`.
  */
 val text get() = Type.Text()
+
 /**
  * Form type of argument.
  * This is a shorthand for `Type.Form`.
@@ -212,6 +276,8 @@ val binary get() = Type.Binary()
 
 /**
  * Integer type of argument with a specific requirement.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the integer value before it is validated or used.
  * @param requirement The value requirement for the integer type.
  */
 fun integer(
@@ -221,6 +287,8 @@ fun integer(
 
 /**
  * Decimal type of argument with a specific requirement.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the decimal value before it is validated or used.
  * @param requirement The value requirement for the decimal type.
  */
 fun decimal(
@@ -230,6 +298,8 @@ fun decimal(
 
 /**
  * String type of argument with a specific requirement.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the string value before it is validated or used.
  * @param requirement The value requirement for the string type.
  */
 fun text(
@@ -240,7 +310,6 @@ fun text(
 /**
  * Enum type of argument with a specific requirement.
  * @param enumClass The enum class that the argument represents.
- * @param requirement The value requirement for the enum type.
  */
 fun <T : Enum<T>> enum(
     enumClass: KClass<T>
@@ -248,43 +317,47 @@ fun <T : Enum<T>> enum(
 
 /**
  * Binary type of argument with a specific MIME type and requirement.
- * @param mimeType The MIME type of the binary data.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the binary data before it is validated or used.
  * @param requirement The value requirement for the binary type.
  */
 fun binary(
-    mimeType: String = "application/octet-stream",
-    preProcessor: ((ByteArray) -> ByteArray)? = null,
-    requirement: ValueRequirement<ByteArray>? = null
-) = Type.Binary(mimeType, preProcessor, requirement)
+    preProcessor: ((BinarySource) -> BinarySource)? = null,
+    requirement: ValueRequirement<BinarySource>? = null
+) = Type.Binary(preProcessor, requirement)
 
 /**
  * Form type of argument with a specific requirement.
- * @param formFactory Factory function that creates an instance of the form.
+ * @param formClass The KClass of the form class that the argument represents.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the form data before it is validated or used.
  * @param requirement The value requirement for the form data.
  */
 fun <T : AbstractForm> form(
     formFactory: () -> T,
-    preProcessor: ((FormData<T>) -> FormData<T>)? = null,
-    requirement: ValueRequirement<FormData<T>>? = null
-) : Type.FormType<T> = Type.FormType(formFactory, preProcessor, requirement)
+    preProcessor: ((T) -> T)? = null,
+    requirement: ValueRequirement<T>? = null
+): Type.FormType<T> = Type.FormType(formFactory, preProcessor, requirement)
 
 /**
  * Form type of argument with a specific form class and requirement.
- * This is a shorthand for creating a form type using a class factory.
+ * This is shorthand for creating a form type using a class factory.
  * @param T The type of the form class.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the form data before it is validated or used.
  * @param requirement The value requirement for the form data.
  * @return A [Type.FormType] object representing the form type.
  */
 inline fun <reified T : AbstractForm> form(
-    noinline preProcessor: ((FormData<T>) -> FormData<T>)? = null,
-    requirement: ValueRequirement<FormData<T>>? = null
+    noinline preProcessor: ((T) -> T)? = null,
+    requirement: ValueRequirement<T>? = null
 ): Type.FormType<T> = Type.FormType(classFormFactory(T::class), preProcessor, requirement)
 
 /**
  * List type of argument with a specific element type, size range, duplicates policy, and requirement.
  * @param elementType The type of the elements in the list.
- * @param sizeRange The range of valid sizes for the list.
- * @param duplicatesAllowed Whether duplicates are allowed in the list.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the list data before it is validated or used.
  * @param requirement The value requirement for the list data.
  * @return A [Type.ListType] object representing the list type.
  */
@@ -300,6 +373,8 @@ fun <T> list(
  * @param V The type of the values in the map.
  * @param keyType The type of the keys in the map.
  * @param valueType The type of the values in the map.
+ * @param preProcessor An optional pre-processor function that can be
+ * applied to the map data before it is validated or used.
  * @param requirement The value requirement for the map data.
  * @return A [Type.MapType] object representing the map type.
  */
@@ -320,10 +395,11 @@ val <T : Any> Type<T>.nullable: Type<T?> get() = Type.Nullable(this)
  * Extension property to create a non-nullable version of the type.
  * This is used to ensure that the value cannot be null.
  */
-val <T : Any> Type<T?>.nonNull: Type<T> get() = when (this) {
-    is Type.Nullable<*> -> this.type as Type<T>
-    else -> this as Type<T>
-}
+val <T : Any> Type<T?>.nonNull: Type<T>
+    get() = when (this) {
+        is Type.Nullable<*> -> this.type as Type<T>
+        else -> this as Type<T>
+    }
 
 /**
  * Form factory function that creates an instance of the form class.

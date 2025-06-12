@@ -3,13 +3,24 @@ package requirements
 import AbstractField
 import common.LogicOp
 import data.FieldValueException
+import isOptional
 import spec
+import data.binary.BinarySource
+import data.binary.MimeType
 
 /**
  * Interface representing a requirement for a value.
  * @param T The type of the value.
  */
 sealed interface ValueRequirement<T> {
+
+    /**
+     * Ensures that the provided value is not null.
+     * @return `true` if the value is not null, `false` otherwise.
+     */
+    class NonNull<T> : ValueRequirement<T> {
+        override fun checkValid(value: T): Boolean = value != null
+    }
 
     /**
      * Creates an opositive requirement that checks if the value does not meet the specified requirement.
@@ -119,8 +130,20 @@ sealed interface ValueRequirement<T> {
     data class BinarySizeRange(
         val min: Int,
         val max: Int
-    ) : ValueRequirement<ByteArray> {
-        override fun checkValid(value: ByteArray): Boolean = value.size in min..max
+    ) : ValueRequirement<BinarySource> {
+        override fun checkValid(value: BinarySource): Boolean = value.size in min..max
+    }
+
+    /**
+     * Ensures that the provided binary data matches one of the specified MIME types.
+     * @param mimeTypes The list of valid MIME types.
+     */
+    data class BinaryOneOfMimeTypes(
+        val mimeTypes: List<MimeType>
+    ) : ValueRequirement<BinarySource> {
+        override fun checkValid(value: BinarySource): Boolean {
+            return mimeTypes.any { value.mimeType.matches(it) }
+        }
     }
 
     /**
@@ -262,15 +285,29 @@ data class ValueRequirements<T>(
  */
 @Throws(FieldValueException::class)
 fun <T> AbstractField<T>.processValue(
-    value: T,
+    value: T?,
     optimizedValidation: Boolean = true
 ): T {
+    // Handle value nullability and default value
+    if(value == null) {
+        if(isOptional) {
+            // It's guaranteed that the default value will meet the requirements,
+            // so we can safely return it without further checks.
+            @Suppress("UNCHECKED_CAST")
+            return this.spec.defaultValue as T
+        } else {
+            // If the field is required and the value is null, throw an exception
+            throw FieldValueException(FieldRequirement(this, ValueRequirement.NonNull()))
+        }
+    }
+    // Check if the value with the correct type meets the requirements
     spec.type.let {
         val processed = it.preProcessor?.invoke(value) ?: value
         it.requirement?.ensureValid(this, processed, optimizedValidation)
     }
     return value
 }
+
 
 /*
  * PREDEFINED REQUIREMENTS

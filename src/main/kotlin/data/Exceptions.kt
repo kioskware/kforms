@@ -1,7 +1,9 @@
 package data
 
 import AbstractField
+import AbstractForm
 import requirements.FieldRequirement
+import kotlin.reflect.KClass
 
 /**
  * Exception thrown when there is an error in the form declaration.
@@ -20,7 +22,13 @@ class FormDeclarationException(
  */
 data class FieldValueException(
     val unsatisfiedRequirements: List<FieldRequirement<*>>
-) : Exception()
+) : Exception() {
+    /**
+     * Constructs a FieldValueException with a single unsatisfied requirement.
+     * @param unsatisfiedRequirement The unsatisfied requirement.
+     */
+    constructor(unsatisfiedRequirement: FieldRequirement<*>) : this(listOf(unsatisfiedRequirement))
+}
 
 /**
  * Exception thrown on an attempt to access the data inappropriately.
@@ -29,9 +37,21 @@ data class FieldValueException(
 abstract class DataAccessException : Exception()
 
 /**
+ * Exception thrown when trying to access a field by non-existing ID.
+ * @property fieldId The ID of the field that was not found.
+ */
+data class FieldNotFoundException(
+    val fieldId: String,
+    val formClass: KClass<out AbstractForm>
+) : DataAccessException() {
+    override val message: String
+        get() = "Field with ID '$fieldId' not found in the form: '${formClass.qualifiedName}'"
+}
+
+/**
  * Exception thrown when trying to access a field that is not present in the form.
  * @property field The field that is not present in the form.
  */
-class UnexpectedFieldException(
+data class UnexpectedFieldException(
     val field: AbstractField<*>,
 ) : DataAccessException()

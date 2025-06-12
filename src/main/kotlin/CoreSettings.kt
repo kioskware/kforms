@@ -1,31 +1,32 @@
 import declare.*
-import data.build
 import requirements.*
 import type.*
 
-
 fun main() {
 
-    val form = Appearance().address.zipCode
+    val form = Directory()
 
     println(form.spec.fields.map {
-        it.spec().fullId
+        it.spec().id
     })
 
-    val data = build<Appearance> {
-        key.language put "en"
-        key.customColors put listOf(0xFF0000, 0x00FF00, 0x0000FF)
-        key.address.put {
-            key.street put "123 Main St"
-            key.city put "New York"
-            key.zipCode.put {
-                key.part1 put 100
-                key.part2 put 1
-            }
-        }
-    }
+    Appearance().address.street
 
-    println(data[form.part1])
+
+//    val data = build<Appearance> {
+//        key.language put "en"
+//        key.customColors put listOf(0xFF0000, 0x00FF00, 0x0000FF)
+//        key.address.put {
+//            key.street put "123 Main St"
+//            key.city put "New York"
+//            key.zipCode.put {
+//                key.part1 put 100
+//                key.part2 put 1
+//            }
+//        }
+//    }
+//
+//    println(data[form.part1])
 
 
 //    val addressData = build<Address> {
@@ -56,7 +57,6 @@ annotation class InnerAnnotation(
 fun annotatedFun() {
 
 
-
 }
 
 // 1. Defining template
@@ -77,7 +77,7 @@ class Appearance : Form() {
         defaultValue = emptyList(),
         name = "Custom Colors",
         description = "List of custom colors",
-        enabledRules = rule(theme require (isEqual(Theme.Custom)))
+        enabledRules = rule(::theme require (isEqual(Theme.Custom)))
     )
 
     val address by formField<Address>()

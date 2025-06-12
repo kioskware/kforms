@@ -5,6 +5,7 @@ import AbstractForm
 import common.ValueProvider
 import FieldSpec
 import common.LogicOp
+import data.binary.BinarySource
 import data.FormData
 import requirements.FieldRequirement
 import requirements.FieldRequirements
@@ -33,36 +34,18 @@ fun <ValueType> Form.field(
     orderKey: Int = 0,
     id: String = "",
     enabledRules: FieldRequirements = FieldRequirements.None
-): ValueProvider<AbstractField<ValueType>> {
-    return object : ValueProvider<AbstractField<ValueType>> {
-        private lateinit var spec: FieldSpec<ValueType>
-        private lateinit var field: AbstractField<ValueType>
-        override fun getValue(thisRef: Any?, property: KProperty<*>): AbstractField<ValueType> {
-            if (!::spec.isInitialized) {
-                spec = object : FieldSpec<ValueType> {
-                    override val id by lazy { id.ifBlank { property.name } }
-                    override val type = type
-                    override val fullId: String by lazy {
-                        hostField?.spec()?.fullId?.let { "$it.${this.id}" } ?: this.id
-                    }
-                    override val defaultValue = defaultValue
-                    override val orderKey = orderKey
-                    override val enabledRules = enabledRules
-                    override val name = name
-                    override val description = description
-                    override val descriptionDetailed = descriptionDetailed
-                    override val annotations = property.annotations
-                }
-            }
-            if (!::field.isInitialized) {
-                field = object : AbstractField<ValueType> {
-                    override fun spec(): FieldSpec<ValueType> = spec
-                }
-            }
-            return field
-        }
+) = Form.Field(
+    fieldSpec = object : FieldSpec<ValueType> {
+        override val type: Type<ValueType> = type
+        override val defaultValue: ValueType? = defaultValue
+        override val name: CharSequence? = name
+        override val description: CharSequence? = description
+        override val descriptionDetailed: CharSequence? = descriptionDetailed
+        override val orderKey: Int = orderKey
+        override val id: String = id
+        override val enabledRules: FieldRequirements = enabledRules
     }
-}
+)
 
 /**
  * Declares multi-value field of type [ValueType] with the given parameters.
@@ -433,18 +416,17 @@ fun Form.nullableTextField(
  * @param requirement The value requirement for the binary data.
  */
 fun Form.binaryField(
-    mimeType: String = "application/octet-stream",
-    defaultValue: ByteArray? = null,
+    defaultValue: BinarySource? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
     enabledRules: FieldRequirements = FieldRequirements.None,
-    preProcessor: ((ByteArray) -> ByteArray)? = null,
-    requirement: ValueRequirement<ByteArray>? = null
+    preProcessor: ((BinarySource) -> BinarySource)? = null,
+    requirement: ValueRequirement<BinarySource>? = null
 ) = field(
-    Type.Binary(mimeType, preProcessor, requirement),
+    Type.Binary(preProcessor, requirement),
     defaultValue,
     name,
     description,
@@ -459,18 +441,17 @@ fun Form.binaryField(
  * This field can hold a null value, which is useful for optional binary data.
  */
 fun Form.nullableBinaryField(
-    mimeType: String = "application/octet-stream",
-    defaultValue: ByteArray? = null,
+    defaultValue: BinarySource? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
     enabledRules: FieldRequirements = FieldRequirements.None,
-    preProcessor: ((ByteArray) -> ByteArray)? = null,
-    requirement: ValueRequirement<ByteArray>? = null
+    preProcessor: ((BinarySource) -> BinarySource)? = null,
+    requirement: ValueRequirement<BinarySource>? = null
 ) = field(
-    Type.Binary(mimeType, preProcessor, requirement).nullable,
+    Type.Binary(preProcessor, requirement).nullable,
     defaultValue,
     name,
     description,
@@ -495,16 +476,16 @@ fun Form.nullableBinaryField(
  * @param enabledRules Rules that enable or disable the field
  */
 inline fun <reified T : AbstractForm> Form.formListField(
-    defaultValue: List<FormData<T>>? = null,
+    defaultValue: List<T>? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
-    noinline elementPreprocessor: ((FormData<T>) -> FormData<T>)? = null,
-    elementRequirement: ValueRequirement<FormData<T>>? = null,
-    noinline listPreProcessor: ((List<FormData<T>>) -> List<FormData<T>>)? = null,
-    listRequirement: ValueRequirement<List<FormData<T>>>? = null,
+    noinline elementPreprocessor: ((T) -> T)? = null,
+    elementRequirement: ValueRequirement<T>? = null,
+    noinline listPreProcessor: ((List<T>) -> List<T>)? = null,
+    listRequirement: ValueRequirement<List<T>>? = null,
     enabledRules: FieldRequirements = FieldRequirements.None,
 ) = listField(
     elementType = form(
@@ -529,16 +510,16 @@ inline fun <reified T : AbstractForm> Form.formListField(
  * which is useful for optional lists of forms.
  */
 inline fun <reified T : AbstractForm> Form.nullableFormListField(
-    defaultValue: List<FormData<T>>? = null,
+    defaultValue: List<T>? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
-    noinline elementPreProcessor: ((FormData<T>) -> FormData<T>)? = null,
-    elementRequirement: ValueRequirement<FormData<T>>? = null,
-    noinline listPreProcessor: ((List<FormData<T>>) -> List<FormData<T>>)? = null,
-    listRequirement: ValueRequirement<List<FormData<T>>>? = null,
+    noinline elementPreProcessor: ((T) -> T)? = null,
+    elementRequirement: ValueRequirement<T>? = null,
+    noinline listPreProcessor: ((List<T>) -> List<T>)? = null,
+    listRequirement: ValueRequirement<List<T>>? = null,
     enabledRules: FieldRequirements = FieldRequirements.None
 ) = listField(
     elementType = form(
@@ -570,39 +551,29 @@ inline fun <reified T : AbstractForm> Form.nullableFormListField(
  * @param requirement The value requirement for the form data.
  */
 inline fun <reified T : Form> Form.formField(
-    defaultValue: FormData<T>? = null,
+    defaultValue: T? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
     enabledRules: FieldRequirements = FieldRequirements.None,
-    noinline preProcessor: ((FormData<T>) -> FormData<T>)? = null,
-    requirement: ValueRequirement<FormData<T>>? = null
-): ValueProvider<T> {
-    val formInstance = T::class.constructors.firstOrNull()?.call() ?: throw IllegalArgumentException(
-        "Form class ${T::class} must have a no-arg constructor"
-    )
-    return object : ValueProvider<T> {
-        private lateinit var mField: AbstractField<FormData<T>>
-        override fun getValue(thisRef: Any?, property: KProperty<*>): T {
-            if (!::mField.isInitialized) {
-                mField = field(
-                    type = form(preProcessor, requirement),
-                    defaultValue = defaultValue,
-                    name = name ?: formInstance.spec().name,
-                    description = description ?: formInstance.spec().description,
-                    descriptionDetailed = descriptionDetailed ?: formInstance.spec().descriptionDetailed,
-                    orderKey = orderKey,
-                    id = id,
-                    enabledRules = enabledRules
-                ).getValue(this, property)
-                formInstance._hostField = mField
-            }
-            return formInstance
-        }
-    }
-}
+    noinline preProcessor: ((T) -> T)? = null,
+    requirement: ValueRequirement<T>? = null
+) = field(
+    type = form(
+        classFormFactory(T::class),
+        preProcessor,
+        requirement
+    ),
+    defaultValue = defaultValue,
+    name = name,
+    description = description,
+    descriptionDetailed = descriptionDetailed,
+    orderKey = orderKey,
+    id = id,
+    enabledRules = enabledRules
+)
 
 /**
  * Declares a map field with the given parameters.
@@ -666,7 +637,6 @@ fun <K, V> Form.nullableMapField(
     id = id,
     enabledRules = enabledRules
 )
-
 
 /**
  * Creates a [FieldRequirements] instance with the provided field requirement with a logical AND operation.

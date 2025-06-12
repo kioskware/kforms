@@ -23,7 +23,6 @@ interface AbstractField<T> {
  * @property defaultValue Default value of the field
  * @property id ID of the field or empty string to use property or class name for as
  * an ID
- * @property parent Parent form of this field or null if this is a top-level field.
  * @property name Name of the field
  * @property description Description of the field
  * @property descriptionDetailed Detailed description of the field
@@ -31,13 +30,14 @@ interface AbstractField<T> {
  * higher numbers are positioned first, default is 0
  * if the field is a single value or a list of values
  * @property enabledRules Rules that enable or disable the field
- * @property fullId Full ID of the field including parent(s) form ID
  *
  */
 interface FieldSpec<T> : AbstractSpec{
     val id: String
-    val fullId: String get() = id
     val type: Type<T>
+    val name: CharSequence? get() = null
+    val description: CharSequence? get() = null
+    val descriptionDetailed: CharSequence? get() = null
     val defaultValue: T? get() = null
     val orderKey: Int get() = 0
     val enabledRules: FieldRequirements get() = FieldRequirements.None
@@ -45,7 +45,7 @@ interface FieldSpec<T> : AbstractSpec{
 
 /**
  * Checks whether this field is optional or not.
- * Optional fields come with a default value.
+ * Optional fields come with a default value or have a nullable type.
  */
 val AbstractField<*>.isOptional: Boolean get() =
     spec().defaultValue != null || spec().type is Type.Nullable<*>
