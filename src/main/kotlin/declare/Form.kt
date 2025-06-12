@@ -2,22 +2,20 @@ package declare
 
 import AbstractField
 import AbstractForm
+import Appearance
+import FieldNotFoundException
 import FieldSpec
 import FormSpec
-import data.DataAccessException
-import data.FieldNotFoundException
-import data.UnexpectedFieldException
+import UnexpectedFieldException
 import declare.Form.Field
 import fields
 import id
 import requirements.ValueRequirement
-import requirements.processValue
 import requirements.require
-import spec
-import type.Type
+import type.classFormFactory
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty
-import kotlin.reflect.full.getExtensionDelegate
+import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
 
@@ -106,26 +104,19 @@ abstract class Form : AbstractForm {
         val specCaches = mutableMapOf<KClass<out Form>, FormSpec>()
     }
 
-    private val data: MutableMap<String, Any?> = mutableMapOf()
+    private lateinit var data: MutableMap<String, Any?>
 
-    private val _spec: FormSpec by lazy {
-        specCaches.getOrPut(this::class) {
-            object : FormSpec {
-                override val annotations: List<Annotation> = this@Form::class.annotations
-                override val fields by lazy {
-                    this@Form::class.memberProperties.mapNotNull { property ->
-                        property.isAccessible = true // Make the property accessible
-                        // Try extract the field from the property,
-                        // if it's not a field declaration,
-                        // it will return null
-                        (property.getExtensionDelegate() as? Field<*>).also {
-                            // If the field is found, set its property reference
-                            it?.property = property
-                        }
-                    }
-                }
-            }
-        }
+    private val _spec: FormSpec by lazy { specCaches.getOrPut(this::class) { resolveSpec() } }
+
+    /**
+     * Initializes the form with the given data.
+     * This function should be called before accessing any fields of the form.
+     * Method used only for internal purposes.
+     * To build a form with data, use builder methods instead.
+     * @param data the data to initialize the form with.
+     */
+    internal fun initialize(data: MutableMap<String, Any?>) {
+        this.data = data
     }
 
     /**
@@ -157,6 +148,78 @@ abstract class Form : AbstractForm {
     }
 
     /**
+     * Creates a requirement for the value of the field.
+     * @receiver the property of the field that requires some value format.
+     * @param requirement the value requirement for the field.
+     */
+    infix fun <T> KProperty<T>.require(
+        requirement: ValueRequirement<T>
+    ) = getFieldByProperty(this)!!.require(requirement)
+
+    /**
+     * Internal function that reads the specification of the form from the class.
+     */
+    private fun resolveSpec() = object : FormSpec {
+        override val annotations: List<Annotation> = this@Form::class.annotations
+        override val fields by lazy {
+            this@Form::class.memberProperties
+                .filterIsInstance<KProperty1<Form, *>>()
+                .mapNotNull { property ->
+                    // Make the property accessible
+                    property.isAccessible = true
+                    // Skip properties that are not fields
+                    if (!property.isFinal || property.isAbstract ||
+                        property.isConst || property.isLateinit ||
+                        property.isSuspend
+                    ) {
+                        return@mapNotNull null
+                    }
+                    // Try to extract the field from the property,
+                    // if it's not a field declaration,
+                    // it will return null
+                    (property.getDelegate(this@Form) as? Field<*>).also {
+                        // If the field is found, set its property reference
+                        it?.property = property
+                    }
+                }
+        }
+    }
+
+    /**
+     * Returns a string representation of the form data.
+     * This is useful for debugging purposes.
+     */
+    override fun toString(): String {
+        val className = this::class.simpleName ?: "Form"
+        val fieldsString = data.entries.joinToString(", ") { (key, value) ->
+            "$key=$value"
+        }
+        return "$className($fieldsString)"
+    }
+
+    /**
+     * Compares this form with another object for equality.
+     * Two forms are considered equal if they have the same class and the same data.
+     * @param other the object to compare with.
+     * @return true if the forms are equal, false otherwise.
+     */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Form) return false
+        if (this::class != other::class) return false
+        return data == other.data
+    }
+
+    /**
+     * Returns the hash code of the form.
+     * The hash code is computed based on the class and the data of the form.
+     * @return the hash code of the form.
+     */
+    override fun hashCode(): Int {
+        return 31 * this::class.hashCode() + data.hashCode()
+    }
+
+    /**
      * Field of the form.
      */
     class Field<T> internal constructor(
@@ -169,19 +232,13 @@ abstract class Form : AbstractForm {
             thisRef: Form,
             property: KProperty<*>
         ): T {
+            if (!thisRef::data.isInitialized) {
+                throw IllegalStateException("Form data is not initialized. Make sure to call Form.initialize() before accessing fields.")
+            }
             // Find the field by its id (property name)
             @Suppress("UNCHECKED_CAST")
             return thisRef.data[property.name] as? T
                 ?: throw IllegalStateException("Field '${property.name}' is not set or has an incorrect type.")
-        }
-
-        operator fun setValue(
-            thisRef: Form,
-            property: KProperty<*>,
-            value: T
-        ) {
-            thisRef.data[property.name] =
-                processValue(value) // Perform validation and processing of the value
         }
 
         override fun spec(): FieldSpec<T> = object : FieldSpec<T> by fieldSpec {
@@ -197,14 +254,28 @@ abstract class Form : AbstractForm {
 
     }
 
-    /**
-     * Creates a requirement for the value of the field.
-     * @receiver the property of the field that requires some value format.
-     * @param requirement the value requirement for the field.
-     */
-    infix fun <T> KProperty<T>.require(
-        requirement: ValueRequirement<T>
-    ) = getFieldByProperty(this)!!.require(requirement)
+    class BuilderScope<T : Form>
+    @PublishedApi
+    internal constructor(formClass: KClass<T>) {
+
+        private val data: MutableMap<String, Any?> = mutableMapOf()
+
+        val key: T = classFormFactory(formClass).invoke()
+
+        infix fun <T> KProperty<T>.put(value: T?) {
+            data[this.name] = value
+        }
+
+        inline infix fun <reified T : Form> KProperty<T>.put(block: BuilderScope<T>.() -> Unit)
+        = put(build<T>(block))
+
+        fun build(): T {
+            key.initialize(data)
+            return key
+        }
+
+    }
+
 
 }
 
@@ -213,7 +284,7 @@ abstract class Form : AbstractForm {
  * @param id the ID of the field.
  * @return the field if found, or null if not found.
  */
-fun Form.getFieldById(id: String): AbstractField<*>? = spec().fields.find { it.id == id }
+fun Form.getFieldById(id: String): AbstractField<*>? = fields.find { it.id == id }
 
 /**
  * Gets the [Form.Field] by its property.
@@ -222,13 +293,41 @@ fun Form.getFieldById(id: String): AbstractField<*>? = spec().fields.find { it.i
  */
 @Suppress("UNCHECKED_CAST")
 fun <T> Form.getFieldByProperty(property: KProperty<T>): AbstractField<T>? {
-    return spec().fields
+    return fields
         .mapNotNull { it as? Field<T> }
-        .find { it.property == property }
+        .find { it.property?.name == property.name }
+}
+
+/**
+ * Builds a form of type [T] using the provided block.
+ * The block is executed in the context of [Form.BuilderScope].
+ *
+ * @param block the block to configure the form.
+ * @return the built form of type [T].
+ */
+inline fun <reified T : Form> build(block: Form.BuilderScope<T>.() -> Unit): T =
+    Form.BuilderScope(T::class).apply(block).build()
+
+fun main() {
+
+    val appearance: Appearance = build {
+        key::customColors put listOf(0xFF0000, 0x00FF00, 0x0000FF)
+        key::address put {
+            key::street put "123 Main St"
+            key::city put "New York"
+            key::zipCode put {
+                key::part1 put 100
+                key::part2 put 1
+            }
+        }
+    }
+
+    println(appearance)
+
 }
 
 
-private val whitespaceRegex = "\\s+".toRegex()
+//private val whitespaceRegex = "\\s+".toRegex()
 
 ///**
 // * Finds a field in the form by its path.
@@ -276,3 +375,5 @@ private val whitespaceRegex = "\\s+".toRegex()
 //    }
 //    return currentField
 //}
+
+

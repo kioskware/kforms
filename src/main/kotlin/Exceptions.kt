@@ -1,7 +1,3 @@
-package data
-
-import AbstractField
-import AbstractForm
 import requirements.FieldRequirement
 import kotlin.reflect.KClass
 

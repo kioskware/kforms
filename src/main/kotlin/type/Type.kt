@@ -315,6 +315,8 @@ fun <T : Enum<T>> enum(
     enumClass: KClass<T>
 ) = Type.EnumType(enumClass)
 
+inline fun <reified T : Enum<T>> enum() = Type.EnumType(T::class)
+
 /**
  * Binary type of argument with a specific MIME type and requirement.
  * @param preProcessor An optional pre-processor function that can be

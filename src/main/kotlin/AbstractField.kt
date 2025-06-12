@@ -1,5 +1,6 @@
 import requirements.FieldRequirements
 import type.Type
+import kotlin.reflect.KAnnotatedElement
 
 /**
  * Represents a field in a form.
@@ -32,7 +33,7 @@ interface AbstractField<T> {
  * @property enabledRules Rules that enable or disable the field
  *
  */
-interface FieldSpec<T> : AbstractSpec{
+interface FieldSpec<T> : KAnnotatedElement {
     val id: String
     val type: Type<T>
     val name: CharSequence? get() = null
@@ -55,3 +56,16 @@ val AbstractField<*>.isOptional: Boolean get() =
  * Required fields do not come with a default value.
  */
 val AbstractField<*>.isRequired: Boolean get() = !isOptional
+
+/**
+ * Shorthand for getting the specification of the field.
+ * Equivalent to `field.spec()`.
+ */
+val <T> AbstractField<T>.spec: FieldSpec<T>
+    get() = spec()
+
+/**
+ * Shorthand for getting the ID of the field.
+ */
+val <T> AbstractField<T>.id: String
+    get() = spec().id

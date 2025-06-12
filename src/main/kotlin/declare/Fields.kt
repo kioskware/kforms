@@ -1,17 +1,13 @@
 package declare
 
-import AbstractField
 import AbstractForm
-import common.ValueProvider
 import FieldSpec
 import common.LogicOp
 import data.binary.BinarySource
-import data.FormData
 import requirements.FieldRequirement
 import requirements.FieldRequirements
 import requirements.ValueRequirement
 import type.*
-import kotlin.reflect.KProperty
 
 /**
  * Declares single value field of type [ValueType] with the given parameters.
@@ -25,7 +21,7 @@ import kotlin.reflect.KProperty
  * @param id ID of the field or empty string to use property or class name for as an ID
  * @param enabledRules Rules that enable or disable the field
  */
-fun <ValueType> Form.field(
+fun <ValueType> field(
     type: Type<ValueType>,
     defaultValue: ValueType? = null,
     name: CharSequence? = null,
@@ -44,11 +40,13 @@ fun <ValueType> Form.field(
         override val orderKey: Int = orderKey
         override val id: String = id
         override val enabledRules: FieldRequirements = enabledRules
+        override val annotations: List<Annotation>
+            get() = TODO("Not yet implemented")
     }
 )
 
 /**
- * Declares multi-value field of type [ValueType] with the given parameters.
+ * Declares multi-value field of type [ElementType] with the given parameters.
  * @param elementType Type of the field
  * @param defaultValue Default value of the field
  * @param name Name of the field
@@ -60,20 +58,19 @@ fun <ValueType> Form.field(
  * @param listRequirement The value requirement for the list field.
  * @param enabledRules Rules that enable or disable the field
  */
-fun <ValueType> Form.listField(
-    elementType: Type<ValueType>,
-    defaultValue: List<ValueType>? = null,
+fun <ElementType> Type<ElementType>.listField(
+    defaultValue: List<ElementType>? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
-    listPreProcessor: ((List<ValueType>) -> List<ValueType>)? = null,
-    listRequirement: ValueRequirement<List<ValueType>>? = null,
+    listPreProcessor: ((List<ElementType>) -> List<ElementType>)? = null,
+    listRequirement: ValueRequirement<List<ElementType>>? = null,
     enabledRules: FieldRequirements = FieldRequirements.None
 ) = field(
     type = list(
-        elementType = elementType,
+        elementType = this,
         preProcessor = listPreProcessor,
         requirement = listRequirement
     ),
@@ -90,20 +87,19 @@ fun <ValueType> Form.listField(
  * Nullable version of [listField].
  * This field can hold a null value, which is useful for optional lists.
  */
-fun <ValueType> Form.nullableListField(
-    elementType: Type<ValueType>,
-    defaultValue: List<ValueType>? = null,
+fun <ElementType> Type<ElementType>.nullableListField(
+    defaultValue: List<ElementType>? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
     descriptionDetailed: CharSequence? = null,
     orderKey: Int = 0,
     id: String = "",
-    listPreProcessor: ((List<ValueType>) -> List<ValueType>)? = null,
-    listRequirement: ValueRequirement<List<ValueType>>? = null,
+    listPreProcessor: ((List<ElementType>) -> List<ElementType>)? = null,
+    listRequirement: ValueRequirement<List<ElementType>>? = null,
     enabledRules: FieldRequirements = FieldRequirements.None
 ) = field(
     type = list(
-        elementType = elementType,
+        elementType = this,
         preProcessor = listPreProcessor,
         requirement = listRequirement
     ).nullable,
@@ -128,7 +124,7 @@ fun <ValueType> Form.nullableListField(
  * @param id ID of the field or empty string to use property or class name for as an ID
  * @param enabledRules Rules that enable or disable the field
  */
-fun Form.boolField(
+fun boolField(
     defaultValue: Boolean? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -151,7 +147,7 @@ fun Form.boolField(
  * Nullable version of [boolField].
  * This field can hold a null value, which is useful for optional boolean values.
  */
-fun Form.nullableBoolField(
+fun nullableBoolField(
     defaultValue: Boolean? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -183,7 +179,7 @@ fun Form.nullableBoolField(
  * @param enabledRules Rules that enable or disable the field
  * @param requirement The value requirement for the enum data.
  */
-inline fun <reified T : Enum<T>> Form.enumField(
+inline fun <reified T : Enum<T>> enumField(
     defaultValue: T? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -206,7 +202,7 @@ inline fun <reified T : Enum<T>> Form.enumField(
  * Nullable version of [enumField].
  * This field can hold a null value, which is useful for optional enum values.
  */
-inline fun <reified T : Enum<T>> Form.nullableEnumField(
+inline fun <reified T : Enum<T>> nullableEnumField(
     defaultValue: T? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -237,7 +233,7 @@ inline fun <reified T : Enum<T>> Form.nullableEnumField(
  * @param enabledRules Rules that enable or disable the field
  * @param requirement The value requirement for the integer field.
  */
-fun Form.intField(
+fun intField(
     defaultValue: Long? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -262,7 +258,7 @@ fun Form.intField(
  * Nullable version of [intField].
  * This field can hold a null value, which is useful for optional integer values.
  */
-fun Form.nullableIntField(
+fun nullableIntField(
     defaultValue: Long? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -296,7 +292,7 @@ fun Form.nullableIntField(
  * @param enabledRules Rules that enable or disable the field
  * @param requirement The value requirement for the decimal data.
  */
-fun Form.decimalField(
+fun decimalField(
     defaultValue: Double? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -321,7 +317,7 @@ fun Form.decimalField(
  * Nullable version of [decimalField].
  * This field can hold a null value, which is useful for optional decimal values.
  */
-fun Form.nullableDecimalField(
+fun nullableDecimalField(
     defaultValue: Double? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -355,7 +351,7 @@ fun Form.nullableDecimalField(
  * @param enabledRules Rules that enable or disable the field
  * @param requirement The value requirement for the text data.
  */
-fun Form.textField(
+fun textField(
     defaultValue: String? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -380,7 +376,7 @@ fun Form.textField(
  * Nullable version of [textField].
  * This field can hold a null value, which is useful for optional text data.
  */
-fun Form.nullableTextField(
+fun nullableTextField(
     defaultValue: String? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -415,7 +411,7 @@ fun Form.nullableTextField(
  * @param enabledRules Rules that enable or disable the field
  * @param requirement The value requirement for the binary data.
  */
-fun Form.binaryField(
+fun binaryField(
     defaultValue: BinarySource? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -440,7 +436,7 @@ fun Form.binaryField(
  * Nullable version of [binaryField].
  * This field can hold a null value, which is useful for optional binary data.
  */
-fun Form.nullableBinaryField(
+fun nullableBinaryField(
     defaultValue: BinarySource? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -475,7 +471,7 @@ fun Form.nullableBinaryField(
  * @param listRequirement The value requirement for the list field.
  * @param enabledRules Rules that enable or disable the field
  */
-inline fun <reified T : AbstractForm> Form.formListField(
+inline fun <reified T : AbstractForm> formListField(
     defaultValue: List<T>? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -487,12 +483,11 @@ inline fun <reified T : AbstractForm> Form.formListField(
     noinline listPreProcessor: ((List<T>) -> List<T>)? = null,
     listRequirement: ValueRequirement<List<T>>? = null,
     enabledRules: FieldRequirements = FieldRequirements.None,
-) = listField(
-    elementType = form(
-        classFormFactory(T::class),
-        elementPreprocessor,
-        elementRequirement
-    ),
+) = form(
+    classFormFactory(T::class),
+    elementPreprocessor,
+    elementRequirement
+).listField(
     listPreProcessor = listPreProcessor,
     listRequirement = listRequirement,
     defaultValue = defaultValue,
@@ -509,7 +504,7 @@ inline fun <reified T : AbstractForm> Form.formListField(
  * This field can hold a list of nullable form data,
  * which is useful for optional lists of forms.
  */
-inline fun <reified T : AbstractForm> Form.nullableFormListField(
+inline fun <reified T : AbstractForm> nullableFormListField(
     defaultValue: List<T>? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -521,12 +516,11 @@ inline fun <reified T : AbstractForm> Form.nullableFormListField(
     noinline listPreProcessor: ((List<T>) -> List<T>)? = null,
     listRequirement: ValueRequirement<List<T>>? = null,
     enabledRules: FieldRequirements = FieldRequirements.None
-) = listField(
-    elementType = form(
-        formFactory = classFormFactory(T::class),
-        preProcessor = elementPreProcessor,
-        requirement = elementRequirement
-    ),
+) = form(
+    formFactory = classFormFactory(T::class),
+    preProcessor = elementPreProcessor,
+    requirement = elementRequirement
+).listField(
     defaultValue = defaultValue,
     name = name,
     description = description,
@@ -550,7 +544,7 @@ inline fun <reified T : AbstractForm> Form.nullableFormListField(
  * @param enabledRules Rules that enable or disable the field
  * @param requirement The value requirement for the form data.
  */
-inline fun <reified T : Form> Form.formField(
+inline fun <reified T : Form> formField(
     defaultValue: T? = null,
     name: CharSequence? = null,
     description: CharSequence? = null,
@@ -588,7 +582,7 @@ inline fun <reified T : Form> Form.formField(
  * @param id ID of the field or empty string to use property or class name for as an ID
  * @param enabledRules Rules that enable or disable the field
  */
-fun <K, V> Form.mapField(
+fun <K, V> mapField(
     keyType: Type<K>,
     valueType: Type<V>,
     defaultValue: Map<K, V>? = null,
@@ -615,7 +609,7 @@ fun <K, V> Form.mapField(
  * Nullable version of [mapField].
  * This field can hold a null value, which is useful for optional maps.
  */
-fun <K, V> Form.nullableMapField(
+fun <K, V> nullableMapField(
     keyType: Type<K>,
     valueType: Type<V>,
     defaultValue: Map<K, V>? = null,

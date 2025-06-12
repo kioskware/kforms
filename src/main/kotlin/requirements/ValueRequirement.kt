@@ -2,7 +2,7 @@ package requirements
 
 import AbstractField
 import common.LogicOp
-import data.FieldValueException
+import FieldValueException
 import isOptional
 import spec
 import data.binary.BinarySource

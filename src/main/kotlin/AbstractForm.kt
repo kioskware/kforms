@@ -1,4 +1,4 @@
-import data.DataAccessException
+import kotlin.reflect.KAnnotatedElement
 
 /**
  * Defines complex data tu\ype with a set of fields.
@@ -34,7 +34,7 @@ interface AbstractForm {
  * Specification of the form.
  * @property fields List of fields in the form.
  */
-interface FormSpec : AbstractSpec {
+interface FormSpec : KAnnotatedElement {
 
     /**
      * Fields inside this form.
@@ -42,3 +42,16 @@ interface FormSpec : AbstractSpec {
     val fields: List<AbstractField<*>>
 
 }
+
+/**
+ * Shorthand for getting the specification of the form.
+ * Equivalent to `form.spec()`.
+ */
+val <T : AbstractForm> T.spec: FormSpec
+    get() = spec()
+
+/**
+ * Shorthand for getting fields of the form. Equivalent to `form.spec().fields`.
+ */
+val <T : AbstractForm> T.fields : List<AbstractField<*>>
+    get() = spec().fields

@@ -4,60 +4,18 @@ import type.*
 
 fun main() {
 
-    val form = Directory()
+    val file : File = build {
+        key::name put "example.txt"
+        key::size put 1024
+        key::createdAt put 1633036800 // Unix timestamp
+        key::lastModifiedAt put 1633123200 // Unix timestamp
+        key::lastAccessedAt put 1633209600 // Unix timestamp
+    }
 
-    println(form.spec.fields.map {
-        it.spec().id
-    })
-
-    Appearance().address.street
-
-
-//    val data = build<Appearance> {
-//        key.language put "en"
-//        key.customColors put listOf(0xFF0000, 0x00FF00, 0x0000FF)
-//        key.address.put {
-//            key.street put "123 Main St"
-//            key.city put "New York"
-//            key.zipCode.put {
-//                key.part1 put 100
-//                key.part2 put 1
-//            }
-//        }
-//    }
-//
-//    println(data[form.part1])
-
-
-//    val addressData = build<Address> {
-//        key.street put "123 Main St"
-//        key.city put "New York"
-//        key.zipCode put 10001
-//    }
-//
-//    val data = build<Appearance> {
-//        key.language put "en"
-//        key.address put addressData
-//        key.address.city put "New York"
-//    }
-//
-//    println(data { address.city })
+    println("File: $file")
 
 }
 
-annotation class RootAnnotation<T>(
-    vararg val ia: InnerAnnotation
-)
-
-annotation class InnerAnnotation(
-    val a: String,
-    val b: Int
-)
-
-fun annotatedFun() {
-
-
-}
 
 // 1. Defining template
 class Appearance : Form() {
@@ -72,8 +30,7 @@ class Appearance : Form() {
     val theme by enumField<Theme>()
 
     // 2. Declaring basic list field of name "customColors"
-    val customColors by listField(
-        elementType = integer,
+    val customColors by integer.listField(
         defaultValue = emptyList(),
         name = "Custom Colors",
         description = "List of custom colors",
