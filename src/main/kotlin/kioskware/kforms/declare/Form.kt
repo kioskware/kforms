@@ -105,7 +105,6 @@ abstract class Form : AbstractForm {
     private var _data: FormDataMap? = null
     private var _fieldN: Int = 0
     private val _spec: FormSpec by lazy { _specCaches.getOrPut(this::class) { resolveSpec() } }
-    private var _fastAccessSpec: FormSpec? = null
     private var _hashCode: Int? = null
     private var _afterFirstInit = false
 
