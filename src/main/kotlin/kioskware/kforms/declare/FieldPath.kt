@@ -1,8 +1,8 @@
-package declare
+package kioskware.kforms.declare
 
-import AbstractField
-import declare.FieldPath.Segment
-import id
+import kioskware.kforms.AbstractField
+import kioskware.kforms.declare.FieldPath.Segment
+import kioskware.kforms.id
 
 /**
  * Stores a path to some field value.

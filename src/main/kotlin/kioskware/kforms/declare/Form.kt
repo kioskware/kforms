@@ -1,31 +1,19 @@
-package declare
+package kioskware.kforms.declare
 
 
-import AbstractField
-import AbstractForm
-import AbstractFormInitializer
-import Appearance
-import FieldNotFoundException
-import FieldSpec
-import FormDeclarationException
-import FormSpec
-import UnexpectedFieldException
-import build
-import common.LogicOp
-import data.FormDataMap
-import data.ValidationConfig
-import data.binary.BinarySource
-import data.toFormDataMap
-import declare.Form.Field
-import fields
-import id
-import requirements.FieldRequirement
-import requirements.FieldRequirements
-import requirements.ValueRequirement
-import requirements.require
-import scopes.AccessScope
-import spec
-import type.*
+import kioskware.kforms.*
+import kioskware.kforms.common.LogicOp
+import kioskware.kforms.data.FormDataMap
+import kioskware.kforms.data.ValidationConfig
+import kioskware.kforms.data.binary.BinarySource
+import kioskware.kforms.data.toFormDataMap
+import kioskware.kforms.declare.Form.Field
+import kioskware.kforms.requirements.FieldRequirement
+import kioskware.kforms.requirements.FieldRequirements
+import kioskware.kforms.requirements.ValueRequirement
+import kioskware.kforms.requirements.require
+import kioskware.kforms.scopes.AccessScope
+import kioskware.kforms.type.*
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty
 import kotlin.reflect.KProperty1
@@ -271,7 +259,8 @@ abstract class Form : AbstractForm {
         }
         // Check if the field is already cached in the spec cache
         @Suppress("UNCHECKED_CAST")
-        val cachedField = _specCaches[this@Form::class]?.fields?.get(_fieldN++) as? Field<ValueType>
+        val cachedField =
+            _specCaches[this@Form::class]?.fields?.get(_fieldN++) as? Field<ValueType>
         if (cachedField != null) {
             return cachedField
         }
@@ -747,7 +736,7 @@ abstract class Form : AbstractForm {
          *
          * Possible exceptions will be thrown after calling [build] method if data is not compatible.
          */
-        fun merge(other: AbstractForm) = merge(other.data())
+        fun merge(other: AbstractForm): Unit = merge(other.data())
 
         /**
          * Puts all fields from another map into this form's data map.
@@ -861,24 +850,6 @@ fun Form.getFieldById(id: String): AbstractField<*>? = fields.find { it.id == id
 fun <T> Form.getFieldByProperty(property: KProperty<T>): AbstractField<T>? = fields
     .mapNotNull { it as? Field<T> }
     .find { it.property?.name == property.name }
-
-fun main() {
-
-    val appearance: Appearance = build {
-        key::customColors put listOf(0xFF0000, 0x00FF00, 0x0000FF)
-        key::address.put {
-            key::street put "123 Main St"
-            key::city put "New York"
-            key::zipCode.put {
-                key::part1 put 100
-                key::part2 put 1
-            }
-        }
-    }
-
-    println(appearance)
-
-}
 
 
 //private val whitespaceRegex = "\\s+".toRegex()

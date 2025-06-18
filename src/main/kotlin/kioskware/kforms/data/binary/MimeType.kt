@@ -1,4 +1,4 @@
-package data.binary
+package kioskware.kforms.data.binary
 
 /**
  * Represents a MIME type with primary type, subtype, and optional parameters.

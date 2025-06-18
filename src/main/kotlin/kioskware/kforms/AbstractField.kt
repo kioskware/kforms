@@ -1,6 +1,8 @@
-import requirements.FieldRequirements
-import scopes.AccessScope
-import type.Type
+package kioskware.kforms
+
+import kioskware.kforms.requirements.FieldRequirements
+import kioskware.kforms.scopes.AccessScope
+import kioskware.kforms.type.Type
 import kotlin.reflect.KAnnotatedElement
 
 /**
@@ -51,8 +53,9 @@ interface FieldSpec<T> : KAnnotatedElement {
  * Checks whether this field is optional or not.
  * Optional fields come with a default value or have a nullable type.
  */
-val AbstractField<*>.isOptional: Boolean get() =
-    spec().defaultValue != null || spec().type is Type.Nullable<*>
+val AbstractField<*>.isOptional: Boolean
+    get() =
+        spec().defaultValue != null || spec().type is Type.Nullable<*>
 
 /**
  * Checks whether this field is required or not.

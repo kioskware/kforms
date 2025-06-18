@@ -1,8 +1,8 @@
 @file:Suppress("NOTHING_TO_INLINE")
 
-package data.binary
+package kioskware.kforms.data.binary
 
-import common.parseBase64
+import kioskware.kforms.common.parseBase64
 import java.io.InputStream
 
 /**

@@ -1,12 +1,11 @@
-package requirements
+package kioskware.kforms.requirements
 
-import FieldValueException
-import InvalidFieldValueException
-import common.LogicOp
-import data.*
-import data.binary.BinarySource
-import data.binary.MimeType
-import declare.FieldPath
+import kioskware.kforms.FieldValueException
+import kioskware.kforms.InvalidFieldValueException
+import kioskware.kforms.common.LogicOp
+import kioskware.kforms.data.binary.BinarySource
+import kioskware.kforms.data.binary.MimeType
+import kioskware.kforms.declare.FieldPath
 
 /**
  * Interface representing a requirement for a value.

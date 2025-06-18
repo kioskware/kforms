@@ -1,6 +1,8 @@
-import declare.FieldPath
-import requirements.ValueRequirement
-import type.Type
+package kioskware.kforms
+
+import kioskware.kforms.declare.FieldPath
+import kioskware.kforms.requirements.ValueRequirement
+import kioskware.kforms.type.Type
 import kotlin.reflect.KClass
 
 /**
@@ -32,7 +34,7 @@ class FormDeclarationException(
 sealed class FieldValueException(
     open val fieldPath: FieldPath?
 ) : FormException() {
-    abstract override val message : String
+    abstract override val message: String
 }
 
 /**
@@ -74,7 +76,8 @@ class InvalidFieldValueException(
     val requirement: ValueRequirement<*>
 ) : FieldValueException(fieldPath) {
     override val message: String
-        get() = "Field value at path '$fieldPath' does not meet requirement '${requirement}'"}
+        get() = "Field value at path '$fieldPath' does not meet requirement '${requirement}'"
+}
 
 /**
  * Exception thrown on an attempt to access the data inappropriately.

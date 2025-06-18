@@ -1,7 +1,7 @@
-package common
+package kioskware.kforms.common
 
-import data.binary.ArrayBinarySource
-import data.binary.MimeType
+import kioskware.kforms.data.binary.ArrayBinarySource
+import kioskware.kforms.data.binary.MimeType
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 

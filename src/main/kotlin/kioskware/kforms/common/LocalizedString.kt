@@ -1,4 +1,4 @@
-package common
+package kioskware.kforms.common
 
 interface LocalizedString : CharSequence {
 

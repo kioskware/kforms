@@ -1,4 +1,4 @@
-package scopes
+package kioskware.kforms.scopes
 
 /**
  * Defines a scope required for accessing certain fields or data.

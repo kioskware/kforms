@@ -1,9 +1,11 @@
-import data.FormDataMap
-import data.ValidationConfig
-import declare.Form
-import type.Type
-import type.classFormFactory
-import type.form
+package kioskware.kforms
+
+import kioskware.kforms.data.FormDataMap
+import kioskware.kforms.data.ValidationConfig
+import kioskware.kforms.declare.Form
+import kioskware.kforms.type.Type
+import kioskware.kforms.type.classFormFactory
+import kioskware.kforms.type.form
 import kotlin.reflect.KAnnotatedElement
 import kotlin.reflect.KClass
 

@@ -1,11 +1,11 @@
 @file:Suppress("ClassName", "UNCHECKED_CAST")
 
-package type
+package kioskware.kforms.type
 
-import AbstractForm
-import FormDeclarationException
-import data.binary.BinarySource
-import requirements.ValueRequirement
+import kioskware.kforms.AbstractForm
+import kioskware.kforms.FormDeclarationException
+import kioskware.kforms.data.binary.BinarySource
+import kioskware.kforms.requirements.ValueRequirement
 import kotlin.reflect.KClass
 
 /**
@@ -202,7 +202,7 @@ sealed interface Type<T> {
      * @param requirement The value requirement for the form data.
      */
     data class FormType<T : AbstractForm>(
-        val formFactory : () -> T,
+        val formFactory: () -> T,
         override val preProcessor: ((T) -> T)? = null,
         override val requirement: ValueRequirement<T>? = null
     ) : Complex<T> {

@@ -1,7 +1,7 @@
-package requirements
+package kioskware.kforms.requirements
 
-import AbstractField
-import common.LogicOp
+import kioskware.kforms.AbstractField
+import kioskware.kforms.common.LogicOp
 
 /**
  * Pair of a field and its requirement.

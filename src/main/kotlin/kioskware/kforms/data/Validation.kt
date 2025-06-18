@@ -1,23 +1,15 @@
-package data
+package kioskware.kforms.data
 
-import AbstractForm
-import FieldValueException
-import FieldValueTypeMismatchException
-import MissingFieldValueException
-import build
-import data.binary.ArrayBinarySource
-import data.binary.MimeType
-import declare.FieldPath
-import declare.plus
-import fields
-import id
-import isRequired
-import requirements.ensureValid
-import scopes.AccessScope
-import scopes.grantsAccessTo
-import spec
-import type.Type
-import type.classFormFactory
+import kioskware.kforms.*
+import kioskware.kforms.data.binary.ArrayBinarySource
+import kioskware.kforms.data.binary.MimeType
+import kioskware.kforms.declare.FieldPath
+import kioskware.kforms.declare.plus
+import kioskware.kforms.requirements.ensureValid
+import kioskware.kforms.scopes.AccessScope
+import kioskware.kforms.scopes.grantsAccessTo
+import kioskware.kforms.type.Type
+import kioskware.kforms.type.classFormFactory
 
 /**
  * Parameters for form validation.
@@ -42,7 +34,7 @@ data class ValidationParams(
  *
  * @property params the parameters for validation, such as validation mode and access scope.
  * @property optimized whether to use optimized validation. Default is true.
- * @property lenientTypes whether to allow lenient type casting. Default is false.
+ * @property lenientTypes whether to allow lenient type casting. Default is true.
  * @property detailedLocation whether to include detailed location information in validation errors. Default is false.
  * This will include detailed location paths, but may affect performance.
  * In lenient mode, the validation processor will try to cast values to the field type even if they are not exactly matching.
@@ -51,7 +43,7 @@ data class ValidationParams(
 data class ValidationConfig(
     val params: ValidationParams = ValidationParams(),
     val optimized: Boolean = true,
-    val lenientTypes: Boolean = false,
+    val lenientTypes: Boolean = true,
     val detailedLocation: Boolean = false,
     val parentPath: FieldPath? = null
 ) {
@@ -112,7 +104,7 @@ fun <T : AbstractForm> Map<String, Any?>.toFormDataMap(
     return object : FormDataMap, Map<String, Any?> by sm {
 
         init {
-            if(validationConfig.params.mode != ValidationMode.None) {
+            if (validationConfig.params.mode != ValidationMode.None) {
                 // Perform validations only if the mode is not None
                 performValidations()
             }
@@ -277,7 +269,7 @@ private fun <T> Type<T>.castValue(
 
         is Type.FormType<*> -> if (value is Map<*, *>) {
             @Suppress("UNCHECKED_CAST")
-            build(
+            (build(
                 formFactory = classFormFactory(kClass),
                 data = value as (Map<String, *>),
                 validationConfig = ValidationConfig(
@@ -286,7 +278,7 @@ private fun <T> Type<T>.castValue(
                     detailedLocation = detailedLocation,
                     parentPath = currentPath()
                 )
-            )
+            ))
         } else {
             throw typeMismatch()
         }

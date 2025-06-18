@@ -1,4 +1,4 @@
-package common
+package kioskware.kforms.common
 
 /**
  * Performs a deep copy of a [Map] with [String] keys and nullable [Any] values.
@@ -16,9 +16,11 @@ fun Map<String, Any?>.deepCopy(): Map<String, Any?> {
                 @Suppress("UNCHECKED_CAST")
                 (value as Map<String, Any?>).deepCopy()
             }
+
             is List<*> -> {
                 value.deepCopy()
             }
+
             else -> value
         }
     }
@@ -40,6 +42,7 @@ fun List<*>.deepCopy(): List<Any?> {
                 @Suppress("UNCHECKED_CAST")
                 (item as Map<String, Any?>).deepCopy()
             }
+
             is List<*> -> item.deepCopy()
             else -> item
         }

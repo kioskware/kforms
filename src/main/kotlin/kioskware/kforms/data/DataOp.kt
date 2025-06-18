@@ -1,7 +1,6 @@
-package data
+package kioskware.kforms.data
 
 object DataOp {
-
 
 
     enum class Mode {
@@ -9,6 +8,7 @@ object DataOp {
          * Overrides field value with the provided value.
          */
         Override,
+
         /**
          * Behaves differently depending on the value type:<br></br>
          *
@@ -19,10 +19,12 @@ object DataOp {
          *
          */
         Merge,
+
         /**
          * Removes the provided keys from the map or values from the list.
          */
         Remove,
+
         /**
          * Removes following key in the map.
          */
