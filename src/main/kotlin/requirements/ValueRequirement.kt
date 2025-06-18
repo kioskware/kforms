@@ -1,26 +1,18 @@
 package requirements
 
-import AbstractField
-import common.LogicOp
 import FieldValueException
-import isOptional
-import spec
+import InvalidFieldValueException
+import common.LogicOp
+import data.*
 import data.binary.BinarySource
 import data.binary.MimeType
+import declare.FieldPath
 
 /**
  * Interface representing a requirement for a value.
  * @param T The type of the value.
  */
 sealed interface ValueRequirement<T> {
-
-    /**
-     * Ensures that the provided value is not null.
-     * @return `true` if the value is not null, `false` otherwise.
-     */
-    class NonNull<T> : ValueRequirement<T> {
-        override fun checkValid(value: T): Boolean = value != null
-    }
 
     /**
      * Creates an opositive requirement that checks if the value does not meet the specified requirement.
@@ -197,25 +189,71 @@ sealed interface ValueRequirement<T> {
      */
     fun checkValid(value: T): Boolean
 
-    /**
-     * Ensures that the provided value meets the requirement.
-     * If the value does not meet the requirement, a [FieldValueException] is thrown.
-     * @param field The field associated with the value.
-     * @param value The value to check.
-     * @param optimized Applies only for [ValueRequirements].
-     * `true` means that the requirements are checked until the first one fails.
-     * It will save performance in case of multiple requirements,
-     * but may lead to less informative error messages, since only the first failing requirement will be reported.
-     *
-     * @throws FieldValueException if the value does not meet the requirement.
-     */
-    @Throws(FieldValueException::class)
-    fun ensureValid(field: AbstractField<T>, value: T, optimized: Boolean = true) {
-        if (!checkValid(value)) {
-            throw FieldValueException(listOf(FieldRequirement(field, this)))
-        }
-    }
+}
 
+
+/**
+ * Ensures that the provided value meets the requirement.
+ * If the value does not meet the requirement, a [FieldValueException] is thrown.
+ * @param fieldPath Path of the field that is being checked. Used for error reporting.
+ * @param value The value to check.
+ * @param optimized Applies only for [ValueRequirements].
+ * `true` means that the requirements are checked until the first one fails.
+ * It will save performance in case of multiple requirements,
+ * but may lead to less informative error messages, since only the first failing requirement will be reported.
+ *
+ * @throws InvalidFieldValueException if the value does not meet the requirement.
+ */
+@Throws(InvalidFieldValueException::class)
+fun <T> ValueRequirement<T>.ensureValid(
+    fieldPath: FieldPath?,
+    value: T,
+    optimized: Boolean = true
+) {
+
+    when (this) {
+
+        is ValueRequirements -> {
+
+            when (mode) {
+                LogicOp.And -> {
+                    if (optimized) {
+                        requirements.firstOrNull { !it.checkValid(value) }
+                            ?.ensureValid(fieldPath, value, true)
+                    } else {
+                        val violated = requirements.filterNot { it.checkValid(value) }
+                        if (violated.isNotEmpty()) {
+                            throw InvalidFieldValueException(
+                                fieldPath,
+                                ValueRequirements(violated, LogicOp.And)
+                            )
+                        }
+                    }
+                }
+
+                LogicOp.Or -> {
+                    val anyValid = requirements.any { it.checkValid(value) }
+                    if (!anyValid) {
+                        throw InvalidFieldValueException(fieldPath, this)
+                    }
+                }
+
+                LogicOp.Xor -> {
+                    val validCount = requirements.count { it.checkValid(value) }
+                    if (validCount != 1) {
+                        throw InvalidFieldValueException(fieldPath, this)
+                    }
+                }
+            }
+        }
+
+        else -> {
+            if (!checkValid(value)) {
+                throw InvalidFieldValueException(fieldPath, this)
+            }
+        }
+
+    }
 }
 
 /**
@@ -245,67 +283,6 @@ data class ValueRequirements<T>(
             }
         }
     }
-
-    override fun ensureValid(field: AbstractField<T>, value: T, optimized: Boolean) {
-        when(mode) {
-            LogicOp.And -> {
-                if (optimized) {
-                    requirements.firstOrNull { !it.checkValid(value) }
-                        ?.ensureValid(field, value, true)
-                } else {
-                    requirements.forEach { it.ensureValid(field, value, true) }
-                }
-            }
-
-            LogicOp.Or -> {
-                val anyValid = requirements.any { it.checkValid(value) }
-                if (!anyValid) {
-                    throw FieldValueException(listOf(FieldRequirement(field, this)))
-                }
-            }
-
-            LogicOp.Xor -> {
-                val validCount = requirements.count { it.checkValid(value) }
-                if (validCount != 1) {
-                    throw FieldValueException(listOf(FieldRequirement(field, this)))
-                }
-            }
-        }
-    }
-
-}
-
-/**
- * Processes the value using `preProcessor` (if available) and then
- * validates the provided value against the requirement of the field.
- * If the value does not meet the requirement, a [FieldValueException] is thrown.
- * @param value The value to validate.
- * @return The validated value.
- * @throws FieldValueException if the value does not meet the requirement.
- */
-@Throws(FieldValueException::class)
-fun <T> AbstractField<T>.processValue(
-    value: T?,
-    optimizedValidation: Boolean = true
-): T {
-    // Handle value nullability and default value
-    if(value == null) {
-        if(isOptional) {
-            // It's guaranteed that the default value will meet the requirements,
-            // so we can safely return it without further checks.
-            @Suppress("UNCHECKED_CAST")
-            return this.spec.defaultValue as T
-        } else {
-            // If the field is required and the value is null, throw an exception
-            throw FieldValueException(FieldRequirement(this, ValueRequirement.NonNull()))
-        }
-    }
-    // Check if the value with the correct type meets the requirements
-    spec.type.let {
-        val processed = it.preProcessor?.invoke(value) ?: value
-        it.requirement?.ensureValid(this, processed, optimizedValidation)
-    }
-    return value
 }
 
 
@@ -314,69 +291,156 @@ fun <T> AbstractField<T>.processValue(
  */
 
 /**
- * Creates a value requirement that checks if the value is equal to any of the provided values.
- * @param to The values to check against.
- * @return A [ValueRequirement] that checks if the value is equal to any of the provided values.
+ * Requires the value to be one of the specified values.
+ * @param to The values that the value should be equal to.
  */
 fun <T> isEqual(vararg to: T) = ValueRequirement.OneOf(to.toList())
 
+/**
+ * Requires the value to be a multiple of a specified number.
+ * @param multiple The number that the value should be a multiple of.
+ * @return A [ValueRequirement] that checks if the value is a multiple of the specified number.
+ */
 fun isMultipleOf(multiple: Long) = ValueRequirement.MultipleOf(multiple)
 
+/**
+ * Requires the value to be even.
+ * This is a shorthand for `isMultipleOf(2)`.
+ *
+ * @return A [ValueRequirement] that checks if the value is even.
+ */
 val isEven = isMultipleOf(2)
 
+/**
+ * Requires the value to be odd.
+ * This is a shorthand for `Not(isEven)`.
+ * @return A [ValueRequirement] that checks if the value is odd.
+ */
 val isOdd = ValueRequirement.Not(isEven)
 
+/**
+ * Requires the value to be in a specified range.
+ * @param range The range to check against.
+ * @return A [ValueRequirement] that checks if the value is within the specified range.
+ */
 fun isInRange(range: LongRange) = ValueRequirement.IntegerRange(
     min = range.first,
     max = range.last
 )
 
+/**
+ * Requires the value to be in a specified range.
+ * @param range The range to check against.
+ * @return A [ValueRequirement] that checks if the value is within the specified range.
+ */
 fun isInRange(range: IntRange) = ValueRequirement.IntegerRange(
     min = range.first.toLong(),
     max = range.last.toLong()
 )
 
+/**
+ * Requires the value to be in a specified range (for Double).
+ * @param range The range to check against.
+ * @return A [ValueRequirement] that checks if the value is within the specified range.
+ */
 fun isInRange(range: ClosedFloatingPointRange<Double>) = ValueRequirement.DecimalRange(
     min = range.start,
     max = range.endInclusive
 )
 
+/**
+ * Requires the value to be positive (> 0).
+ * @return A [ValueRequirement] that checks if the value is positive.
+ */
 val isPositive = isInRange(1L..Long.MAX_VALUE)
 
+/**
+ * Requires the value to be non-positive (<= 0).
+ * @return A [ValueRequirement] that checks if the value is non-positive.
+ */
 val isNonPositive = isInRange(Long.MIN_VALUE..0L)
 
+/**
+ * Requires the value to be negative (< 0).
+ * @return A [ValueRequirement] that checks if the value is negative.
+ */
 val isNegative = isInRange(Long.MIN_VALUE..-1L)
 
+/**
+ * Requires the value to be non-negative (>= 0).
+ * @return A [ValueRequirement] that checks if the value is non-negative.
+ */
 val isNonNegative = isInRange(0L..Long.MAX_VALUE)
 
+/**
+ * Requires the value to be greater than the specified value.
+ * @param value The lower bound (exclusive).
+ * @return A [ValueRequirement] that checks if the value is greater than the specified value.
+ */
 fun isGreaterThan(value: Long) = ValueRequirement.IntegerRange(
     min = value + 1,
     max = Long.MAX_VALUE
 )
 
+/**
+ * Requires the value to be greater than the specified value.
+ * @param value The lower bound (exclusive).
+ * @return A [ValueRequirement] that checks if the value is greater than the specified value.
+ */
 fun isGreaterThan(value: Int) = ValueRequirement.IntegerRange(
     min = (value + 1).toLong(),
     max = Long.MAX_VALUE
 )
 
+/**
+ * Requires the value to be less than the specified value.
+ * @param value The upper bound (exclusive).
+ * @return A [ValueRequirement] that checks if the value is less than the specified value.
+ */
 fun isLessThan(value: Long) = ValueRequirement.IntegerRange(
     min = Long.MIN_VALUE,
     max = value - 1
 )
 
+/**
+ * Requires the value to be greater than the specified value (for Double).
+ * @param value The lower bound (exclusive).
+ * @return A [ValueRequirement] that checks if the value is greater than the specified value.
+ */
 fun isGreaterThan(value: Double) = ValueRequirement.DecimalLowerThan(value)
 
+/**
+ * Requires the value to be less than the specified value (for Double).
+ * @param value The upper bound (exclusive).
+ * @return A [ValueRequirement] that checks if the value is less than the specified value.
+ */
 fun isLessThan(value: Double) = ValueRequirement.DecimalGreaterThan(value)
 
+/**
+ * Requires the length of the text to be within the specified range.
+ * @param range The range of valid lengths.
+ * @return A [ValueRequirement] that checks if the text length is within the specified range.
+ */
 fun isLengthInRange(range: IntRange) = ValueRequirement.TextLengthRange(
     min = range.first,
     max = range.last
 )
 
+/**
+ * Requires the text value to match the specified pattern.
+ * @param pattern The regex pattern to match against.
+ * @param caseSensitive Whether the check should be case-sensitive.
+ * @param patternDescription Optional description of the pattern for error messages.
+ * @return A [ValueRequirement] that checks if the text matches the pattern.
+ */
 fun isPattern(pattern: Regex, caseSensitive: Boolean = true, patternDescription: CharSequence? = null) =
     ValueRequirement.TextPattern(pattern, caseSensitive, patternDescription)
 
-
+/**
+ * Requires the binary data size to be within the specified range.
+ * @param range The range of valid sizes in bytes.
+ * @return A [ValueRequirement] that checks if the binary size is within the specified range.
+ */
 fun isSizeInRange(range: IntRange) = ValueRequirement.BinarySizeRange(
     min = range.first,
     max = range.last

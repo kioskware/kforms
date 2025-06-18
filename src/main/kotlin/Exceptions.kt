@@ -1,5 +1,18 @@
-import requirements.FieldRequirement
+import declare.FieldPath
+import requirements.ValueRequirement
+import type.Type
 import kotlin.reflect.KClass
+
+/**
+ * Base class for all form-related exceptions.
+ *
+ * @property message The detail message of the exception.
+ * @property cause The cause of the exception, if any.
+ */
+sealed class FormException(
+    message: String? = null,
+    cause: Throwable? = null
+) : Exception(message, cause)
 
 /**
  * Exception thrown when there is an error in the form declaration.
@@ -10,27 +23,64 @@ import kotlin.reflect.KClass
 class FormDeclarationException(
     message: String,
     cause: Throwable? = null
-) : Exception(message, cause)
+) : FormException(message, cause)
 
 /**
- * Exception thrown when a field value does not satisfy the requirements.
- * @property unsatisfiedRequirements The requirements that are not satisfied.
+ * Base class for exceptions related to field values in a form.
+ * @property fieldPath The path to the field in the form where the error occurred.
  */
-data class FieldValueException(
-    val unsatisfiedRequirements: List<FieldRequirement<*>>
-) : Exception() {
-    /**
-     * Constructs a FieldValueException with a single unsatisfied requirement.
-     * @param unsatisfiedRequirement The unsatisfied requirement.
-     */
-    constructor(unsatisfiedRequirement: FieldRequirement<*>) : this(listOf(unsatisfiedRequirement))
+sealed class FieldValueException(
+    open val fieldPath: FieldPath?
+) : FormException() {
+    abstract override val message : String
 }
+
+/**
+ * Exception thrown when a required field value is missing.
+ * This can happen if the field is required but no value is provided.
+ * @param fieldPath The path to the field in the form where the error occurred.
+ */
+class MissingFieldValueException(
+    fieldPath: FieldPath? = null
+) : FieldValueException(fieldPath) {
+    override val message: String
+        get() = "Missing required field value at path: '$fieldPath'"
+}
+
+/**
+ * Exception thrown when a field value does not meet the specified requirements.
+ * This can happen if the value is invalid or does not conform to the expected type.
+ * @property fieldPath The path to the field in the form where the error occurred.
+ * @property valueType The expected type of the field value.
+ */
+class FieldValueTypeMismatchException(
+    fieldPath: FieldPath? = null,
+    val valueType: KClass<*>? = null,
+    val expectedType: Type<*>
+) : FieldValueException(fieldPath) {
+    override val message: String
+        get() = "Field value at path '$fieldPath' does not match expected type '${expectedType}'" +
+                (valueType?.let { ", but was of type '${it.simpleName}'" } ?: "")
+}
+
+/**
+ * Exception thrown when a field value does not meet the specified requirement.
+ * This can happen if the value is invalid, according to the requirement.
+ * @property fieldPath The path to the field in the form where the error occurred.
+ * @property requirement The requirement that the field value did not meet.
+ */
+class InvalidFieldValueException(
+    fieldPath: FieldPath? = null,
+    val requirement: ValueRequirement<*>
+) : FieldValueException(fieldPath) {
+    override val message: String
+        get() = "Field value at path '$fieldPath' does not meet requirement '${requirement}'"}
 
 /**
  * Exception thrown on an attempt to access the data inappropriately.
  * For example, when trying to access a field that is not present in the form.
  */
-abstract class DataAccessException : Exception()
+abstract class DataAccessException : FormException()
 
 /**
  * Exception thrown when trying to access a field by non-existing ID.
@@ -41,7 +91,7 @@ data class FieldNotFoundException(
     val formClass: KClass<out AbstractForm>
 ) : DataAccessException() {
     override val message: String
-        get() = "Field with ID '$fieldId' not found in the form: '${formClass.qualifiedName}'"
+        get() = "Field with ID '$fieldId' not found in form '${formClass.simpleName}'"
 }
 
 /**
@@ -50,4 +100,6 @@ data class FieldNotFoundException(
  */
 data class UnexpectedFieldException(
     val field: AbstractField<*>,
-) : DataAccessException()
+) : DataAccessException() {
+    override val message: String = "Unexpected field '${field.id}'"
+}

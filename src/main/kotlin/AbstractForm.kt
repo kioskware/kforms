@@ -1,4 +1,11 @@
+import data.FormDataMap
+import data.ValidationConfig
+import declare.Form
+import type.Type
+import type.classFormFactory
+import type.form
 import kotlin.reflect.KAnnotatedElement
+import kotlin.reflect.KClass
 
 /**
  * Defines complex data tu\ype with a set of fields.
@@ -9,6 +16,18 @@ interface AbstractForm {
      * Specification of the form.
      */
     fun spec(): FormSpec
+
+    /**
+     * Form internal use only. Do not use it directly.
+     */
+    fun initializer(): AbstractFormInitializer
+
+    /**
+     * Returns the data of the form as a map.
+     * The map contains field IDs as keys and their values as values.
+     * @return A map containing the data of the form.
+     */
+    fun data(): FormDataMap
 
     /**
      * Returns the value of the field with the given ID.
@@ -43,6 +62,50 @@ interface FormSpec : KAnnotatedElement {
 
 }
 
+abstract class AbstractFormInitializer {
+
+    private var currentValidation: ValidationConfig? = null
+
+    /**
+     * Initializes the form with the given data.
+     * This function should be called before accessing any fields of the form.
+     * Method used only for internal purposes.
+     * To build a form with data, use builder methods instead.
+     * @param data the data to initialize the form with.
+     * @param validationConfig the configuration for validation of the form data.
+     */
+    internal fun initialize(
+        data: Map<String, *>,
+        validationConfig: ValidationConfig
+    ) {
+        if (isInitialized) {
+            throw IllegalStateException("Form is already initialized.")
+        }
+        onInitialize(data, validationConfig)
+        currentValidation = validationConfig
+    }
+
+    /**
+     * Performs actual initialization logic.
+     * @see initialize
+     */
+    protected abstract fun onInitialize(
+        data: Map<String, *>,
+        validationConfig: ValidationConfig
+    )
+
+    /**
+     * Performs actual destruction logic.
+     */
+    protected abstract fun onDestroy()
+
+    /**
+     * Checks if the form is initialized.
+     */
+    abstract val isInitialized: Boolean
+
+}
+
 /**
  * Shorthand for getting the specification of the form.
  * Equivalent to `form.spec()`.
@@ -53,5 +116,102 @@ val <T : AbstractForm> T.spec: FormSpec
 /**
  * Shorthand for getting fields of the form. Equivalent to `form.spec().fields`.
  */
-val <T : AbstractForm> T.fields : List<AbstractField<*>>
+val <T : AbstractForm> T.fields: List<AbstractField<*>>
     get() = spec().fields
+
+/**
+ * Shorthand for getting the type of the form.
+ */
+val <T : AbstractForm> T.type: Type.FormType<T>
+    get() = form(classFormFactory(this::class))
+
+/**
+ * Builds a form of type [T] using the provided class and block.
+ * The block is executed in the context of [Form.BuilderScope].
+ *
+ * @param formClass the class of the form to build.
+ * @param validationConfig the configuration for validation of the form data.
+ * @param block the block to provide the form data.
+ * @return the built form of type [T].
+ */
+fun <T : AbstractForm> build(
+    formFactory: () -> T,
+    validationConfig: ValidationConfig = ValidationConfig.Default,
+    block: Form.BuilderScope<T>.() -> Unit
+): T = Form.BuilderScope(formFactory, validationConfig).apply(block).build()
+
+/**
+ * Builds a form of type [T] using the provided block.
+ * The block is executed in the context of [Form.BuilderScope].
+ *
+ * @param block the block to configure the form.
+ * @return the built form of type [T].
+ */
+inline fun <reified T : AbstractForm> build(
+    validationConfig: ValidationConfig = ValidationConfig.Default,
+    noinline block: Form.BuilderScope<T>.() -> Unit
+): T = build(classFormFactory(T::class), validationConfig, block)
+
+/**
+ * Builds a form of type [T] using the provided data map.
+ * The data map is processed to match the form's fields and their types.
+ *
+ * @param formClass the class of the form
+ * @param data the data map to initialize the form with.
+ * @param validationConfig the configuration for validation of the form data.
+ * @return the built form of type [T].
+ */
+fun <T : AbstractForm> build(
+    formFactory: () -> T,
+    data: Map<String, *>,
+    validationConfig: ValidationConfig = ValidationConfig.Default
+): T = build(formFactory(), data, validationConfig)
+
+/**
+ * Builds a form of type [T] using the provided class and data map.
+ * The data map is processed to match the form's fields and their types.
+ *
+ * @param formClass the class of the form to build.
+ * @param data the data map to initialize the form with.
+ * @param validationConfig the configuration for validation of the form data.
+ * @return the built form of type [T].
+ */
+fun <T : AbstractForm> build(
+    formClass: KClass<T>,
+    data: Map<String, *>,
+    validationConfig: ValidationConfig = ValidationConfig.Default
+): T = build(classFormFactory(formClass), data, validationConfig)
+
+/**
+ * Builds a form of type [T] using the provided data map.
+ * The data map is processed to match the form's fields and their types.
+ *
+ * @param data the data map to initialize the form with.
+ * @param validationConfig the configuration for validation of the form data.
+ * @return the built form of type [T].
+ */
+inline fun <reified T : AbstractForm> build(
+    data: Map<String, *>,
+    validationConfig: ValidationConfig = ValidationConfig.Default
+): T = build(T::class, data, validationConfig)
+
+/**
+ * Builds a form of type [T] using the provided form and data map.
+ * The data map is processed to match the form's fields and their types.
+ *
+ * @param form the form to initialize with data.
+ * @param initialData the data map to initialize the form with.
+ * @param validationConfig the configuration for validation of the form data.
+ * @return the initialized form of type [T].
+ */
+fun <T : AbstractForm> build(
+    form: T,
+    initialData: Map<String, *>,
+    validationConfig: ValidationConfig = ValidationConfig.Default,
+): T = form.apply {
+    initializer().initialize(
+        data = initialData,
+        validationConfig = validationConfig
+    )
+}
+

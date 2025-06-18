@@ -154,6 +154,7 @@ data class MimeType(
 
     companion object {
         // Common MIME types as constants
+        val ALL = MimeType("*", "*")
         val TEXT_PLAIN = MimeType("text", "plain")
         val TEXT_HTML = MimeType("text", "html")
         val TEXT_CSS = MimeType("text", "css")

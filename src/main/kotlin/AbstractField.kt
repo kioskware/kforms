@@ -1,4 +1,5 @@
 import requirements.FieldRequirements
+import scopes.AccessScope
 import type.Type
 import kotlin.reflect.KAnnotatedElement
 
@@ -36,12 +37,14 @@ interface AbstractField<T> {
 interface FieldSpec<T> : KAnnotatedElement {
     val id: String
     val type: Type<T>
+    val owner: AbstractForm
     val name: CharSequence? get() = null
     val description: CharSequence? get() = null
     val descriptionDetailed: CharSequence? get() = null
     val defaultValue: T? get() = null
     val orderKey: Int get() = 0
     val enabledRules: FieldRequirements get() = FieldRequirements.None
+    val accessScope: AccessScope? get() = AccessScope.None
 }
 
 /**
@@ -69,3 +72,9 @@ val <T> AbstractField<T>.spec: FieldSpec<T>
  */
 val <T> AbstractField<T>.id: String
     get() = spec().id
+
+/**
+ * Shorthand for getting the type of the field.
+ */
+val <T> AbstractField<T>.type: Type<T>
+    get() = spec().type

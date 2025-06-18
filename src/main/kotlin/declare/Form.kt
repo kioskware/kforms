@@ -1,23 +1,37 @@
 package declare
 
+
 import AbstractField
 import AbstractForm
+import AbstractFormInitializer
 import Appearance
 import FieldNotFoundException
 import FieldSpec
+import FormDeclarationException
 import FormSpec
 import UnexpectedFieldException
+import build
+import common.LogicOp
+import data.FormDataMap
+import data.ValidationConfig
+import data.binary.BinarySource
+import data.toFormDataMap
 import declare.Form.Field
 import fields
 import id
+import requirements.FieldRequirement
+import requirements.FieldRequirements
 import requirements.ValueRequirement
 import requirements.require
-import type.classFormFactory
+import scopes.AccessScope
+import spec
+import type.*
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
+
 
 /**
  * # Forms
@@ -53,71 +67,81 @@ import kotlin.reflect.jvm.isAccessible
  *
  * open class File : Form() {
  *
- *     val name by textField(
+ *     val name by textField {
  *         name = "File Name",
  *         description = "Name of the file"
- *     )
+ *     }
  *
- *     val size by intField(
+ *     val size by intField {
  *         name = "File Size",
  *         description = "Size of the file in bytes"
- *     )
+ *     }
  *
- *     val createdAt by intField(
+ *     val createdAt by intField {
  *         name = "Created At",
  *         description = "Creation date and time of the file"
- *     )
+ *     }
  *
  * }
  *
  * class Directory : File() {
  *
- *     val files by formListField<File>(
+ *     val files by formListField<File> {
  *         name = "Files",
  *         description = "List of files in the directory"
- *     )
+ *     }
  *
- *     val subdirectories by formListField<Directory>(
+ *     val subdirectories by formListField<Directory> {
  *         name = "Subdirectories",
  *         description = "List of subdirectories in the directory"
- *     )
+ *     }
  *
  * }
  *
  * ```
  *
- * @param name Default name of the form. Will be used when the `hostField` does not provide a name.
- * @param description Default description of the form. Will be used when the `hostField` does not provide a description.
- * @param descriptionDetailed Default detailed description of the form. Will be used when the `hostField` does not provide a detailed description.
- * @param annotations Additional annotations to be added to the form specification.
- * Will be merged with the annotations from the class. These annotations will be added to `hostField` specification.
  */
+@Suppress("NOTHING_TO_INLINE")
 abstract class Form : AbstractForm {
 
-    private companion object {
+    companion object {
         /**
          * Stores the specifications of forms to avoid re-reading them from the class.
          *
          * We can cache the specs because by the convention,
          * specs are the same for each instance of the form with same class.
          */
-        val specCaches = mutableMapOf<KClass<out Form>, FormSpec>()
+        private val _specCaches = mutableMapOf<KClass<out Form>, FormSpec>()
     }
 
-    private lateinit var data: MutableMap<String, Any?>
+    private var _data: FormDataMap? = null
+    private var _fieldN: Int = 0
+    private val _spec: FormSpec by lazy { _specCaches.getOrPut(this::class) { resolveSpec() } }
+    private var _fastAccessSpec: FormSpec? = null
+    private var _hashCode: Int? = null
+    private var _afterFirstInit = false
 
-    private val _spec: FormSpec by lazy { specCaches.getOrPut(this::class) { resolveSpec() } }
+    private val _initializer = object : AbstractFormInitializer() {
+        override fun onInitialize(data: Map<String, *>, validationConfig: ValidationConfig) {
+            _afterFirstInit = true // Mark that the form has been initialized at least once
+            this@Form._data = data.toFormDataMap(this@Form, validationConfig)
+            this@Form._hashCode = null // Reset hash code to ensure it is recalculated
+        }
+
+        override fun onDestroy() {
+            _data = null
+        }
+
+        override val isInitialized: Boolean
+            get() = _data != null
+    }
 
     /**
-     * Initializes the form with the given data.
-     * This function should be called before accessing any fields of the form.
-     * Method used only for internal purposes.
-     * To build a form with data, use builder methods instead.
-     * @param data the data to initialize the form with.
+     * For internal use only. Do not use directly.
      */
-    internal fun initialize(data: MutableMap<String, Any?>) {
-        this.data = data
-    }
+    override fun initializer() = _initializer
+
+    override fun data() = _data ?: throw IllegalStateException("Form is not initialized.")
 
     /**
      * Returns the specification of this form.
@@ -135,26 +159,482 @@ abstract class Form : AbstractForm {
     }
 
     override fun <T> get(field: AbstractField<T>): T {
-        return spec().fields.find { it.id == field.id }
-            ?.let {
-                @Suppress("UNCHECKED_CAST")
-                (it as Field<T>).getValue(
-                    this, it.property ?:
-                    // If the property is not set, it means the field was not initialized properly
-                    // this should not happen, but we throw an exception to indicate that
-                    throw IllegalStateException()
-                )
-            } ?: throw UnexpectedFieldException(field)
+        if (field.spec.owner != this) {
+            throw UnexpectedFieldException(field)
+        }
+        return _data.let {
+            if (it == null) {
+                throw IllegalStateException("Form data is not initialized.")
+            }
+            @Suppress("UNCHECKED_CAST")
+            it[field.id] as T
+        }
     }
+
+    //region Any Methods
+
+    /**
+     * Returns a string representation of the form data.
+     * This is useful for debugging purposes.
+     */
+    override fun toString(): String {
+        val className = this::class.simpleName ?: "Form"
+        val fieldsString = _data?.entries?.joinToString(", ") { (key, value) ->
+            "$key=$value"
+        } ?: "<uninitialized>"
+        return "$className($fieldsString)"
+    }
+
+    /**
+     * Compares this form with another object for equality.
+     * Two forms are considered equal if they have the same class and the same data.
+     * @param other the object to compare with.
+     * @return true if the forms are equal, false otherwise.
+     */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Form) return false
+        if (this::class != other::class) return false
+        return _data == other._data
+    }
+
+    /**
+     * Returns the hash code of the form.
+     * The hash code is computed based on the class and the data of the form.
+     * @return the hash code of the form.
+     */
+    override fun hashCode(): Int {
+        return _hashCode?.let {
+            return it
+        } ?: (31 * this::class.hashCode() + _data.hashCode()).also {
+            _hashCode = it
+        }
+    }
+
+    //endregion
+
+    //region Field Declaration
+
+    /**
+     * Declares single value field of type [ValueType] with the given parameters.
+     * @param type Type of the field
+     * @param defaultValue Default value of the field
+     * @param name Name of the field
+     * @param description Description of the field
+     * @param descriptionDetailed Detailed description of the field
+     * @param orderKey Order key of the field. Defines the order of the field in the form.
+     * higher numbers are positioned first, default is 0
+     * @param id ID of the field or empty string to use property or class name for as an ID
+     * @param enabledRules Rules that enable or disable the field
+     * @param annotations Additional annotations to be added to the field specification.
+     */
+    inner class FieldBuilderScope<T>(
+        val type: Type<T>,
+        var defaultValue: T? = null,
+        var name: CharSequence? = null,
+        var description: CharSequence? = null,
+        var descriptionDetailed: CharSequence? = null,
+        var orderKey: Int = 0,
+        var id: String = "",
+        var enabledRules: FieldRequirements = FieldRequirements.None,
+        var annotations: List<Annotation> = emptyList()
+    ) {
+        /**
+         * Builds the field with the specified parameters.
+         * @return the created field.
+         */
+        internal fun build(): Field<T> = Field(
+            type = type,
+            defaultValue = defaultValue,
+            name = name,
+            description = description,
+            descriptionDetailed = descriptionDetailed,
+            orderKey = orderKey,
+            id = id,
+            enabledRules = enabledRules,
+            annotations = annotations
+        )
+    }
+
+    /**
+     * Declares a field of type [ValueType] with the given parameters.
+     * This function is used to create a field of a specific type
+     *
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected fun <ValueType> Type<ValueType>.field(
+        block: FieldBuilderScope<ValueType>.() -> Unit = {}
+    ): Field<ValueType> {
+        if (_afterFirstInit) {
+            throw FormDeclarationException("Cannot declare fields after the form is initialized.")
+        }
+        // Check if the field is already cached in the spec cache
+        @Suppress("UNCHECKED_CAST")
+        val cachedField = _specCaches[this@Form::class]?.fields?.get(_fieldN++) as? Field<ValueType>
+        if (cachedField != null) {
+            return cachedField
+        }
+        // Create a new field if not cached
+        return FieldBuilderScope(this)
+            .apply(block).build()
+    }
+
+    /**
+     * Declares a multi-value field of type [ElementType] with the given parameters.
+     * This function is used to create a field that holds a list of elements of a specific type.
+     *
+     * @param listPreProcessor Optional lambda to preprocess the list before validation or usage.
+     * @param requireList Optional value requirement for the list field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <ElementType> Type<ElementType>.listField(
+        noinline listPreProcessor: ((List<ElementType>) -> List<ElementType>)? = null,
+        requireList: ValueRequirement<List<ElementType>>? = null,
+        noinline block: FieldBuilderScope<List<ElementType>>.() -> Unit = {}
+    ) = list(
+        elementType = this,
+        preProcessor = listPreProcessor,
+        requirement = requireList
+    ).field(block)
+
+    /**
+     * Declares a nullable multi-value field of type [ElementType] with the given parameters.
+     * This function is used to create a field that holds a nullable list of elements of a specific type.
+     *
+     * @param listPreProcessor Optional lambda to preprocess the list before validation or usage.
+     * @param requireList Optional value requirement for the list field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <ElementType> Type<ElementType>.nullableListField(
+        noinline listPreProcessor: ((List<ElementType>) -> List<ElementType>)? = null,
+        requireList: ValueRequirement<List<ElementType>>? = null,
+        noinline block: FieldBuilderScope<List<ElementType>?>.() -> Unit = {}
+    ) = list(
+        elementType = this,
+        preProcessor = listPreProcessor,
+        requirement = requireList
+    ).nullable.field(block)
+
+    /**
+     * Declares a boolean field with the given parameters.
+     * This function is used to create a field that holds a boolean value (true or false).
+     *
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun boolField(
+        noinline block: FieldBuilderScope<Boolean>.() -> Unit = {}
+    ) = bool.field(block)
+
+    /**
+     * Declares a nullable boolean field with the given parameters.
+     * This function is used to create a field that holds a nullable boolean value.
+     *
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun nullableBoolField(
+        noinline block: FieldBuilderScope<Boolean?>.() -> Unit = {}
+    ) = Type.Bool.nullable.field(block)
+
+    /**
+     * Declares an enum field of type [T] with the given parameters.
+     * This function is used to create a field that holds a value of a specific enum type.
+     *
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <reified T : Enum<T>> enumField(
+        noinline block: FieldBuilderScope<T>.() -> Unit = {}
+    ) = Type.EnumType(T::class).field(block)
+
+    /**
+     * Declares a nullable enum field of type [T] with the given parameters.
+     * This function is used to create a field that holds a nullable value of a specific enum type.
+     *
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <reified T : Enum<T>> nullableEnumField(
+        noinline block: FieldBuilderScope<T?>.() -> Unit = {}
+    ) = Type.EnumType(T::class).nullable.field(block)
+
+    /**
+     * Declares an integer field with the given parameters.
+     * This function is used to create a field that holds an integer value.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the integer field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun intField(
+        noinline preProcessor: ((Long) -> Long)? = null,
+        require: ValueRequirement<Long>? = null,
+        noinline block: FieldBuilderScope<Long>.() -> Unit = {}
+    ) = Type.Integer(preProcessor, require).field(block)
+
+    /**
+     * Declares a nullable integer field with the given parameters.
+     * This function is used to create a field that holds a nullable integer value.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the integer field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun nullableIntField(
+        noinline preProcessor: ((Long) -> Long)? = null,
+        require: ValueRequirement<Long>? = null,
+        noinline block: FieldBuilderScope<Long?>.() -> Unit = {}
+    ) = Type.Integer(preProcessor, require).nullable.field(block)
+
+    /**
+     * Declares a decimal field with the given parameters.
+     * This function is used to create a field that holds a double value (e.g., price or measurement).
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the decimal field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun decimalField(
+        noinline preProcessor: ((Double) -> Double)? = null,
+        require: ValueRequirement<Double>? = null,
+        noinline block: FieldBuilderScope<Double>.() -> Unit = {}
+    ) = Type.Decimal(preProcessor, require).field(block)
+
+    /**
+     * Declares a nullable decimal field with the given parameters.
+     * This function is used to create a field that holds a nullable double value.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the decimal field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun nullableDecimalField(
+        noinline preProcessor: ((Double) -> Double)? = null,
+        require: ValueRequirement<Double>? = null,
+        noinline block: FieldBuilderScope<Double?>.() -> Unit = {}
+    ) = Type.Decimal(preProcessor, require).nullable.field(block)
+
+    /**
+     * Declares a text field with the given parameters.
+     * This function is used to create a field that holds a string value, such as a name or description.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the text field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun textField(
+        noinline preProcessor: ((String) -> String)? = null,
+        require: ValueRequirement<String>? = null,
+        noinline block: FieldBuilderScope<String>.() -> Unit = {}
+    ) = Type.Text(preProcessor, require).field(block)
+
+    /**
+     * Declares a nullable text field with the given parameters.
+     * This function is used to create a field that holds a nullable string value.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the text field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun nullableTextField(
+        noinline preProcessor: ((String) -> String)? = null,
+        require: ValueRequirement<String>? = null,
+        noinline block: FieldBuilderScope<String?>.() -> Unit = {}
+    ) = Type.Text(preProcessor, require).nullable.field(block)
+
+    /**
+     * Declares a binary field with the given parameters.
+     * This function is used to create a field that holds binary data, such as files or images.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the binary field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun binaryField(
+        noinline preProcessor: ((BinarySource) -> BinarySource)? = null,
+        require: ValueRequirement<BinarySource>? = null,
+        noinline block: FieldBuilderScope<BinarySource>.() -> Unit = {}
+    ) = Type.Binary(preProcessor, require).field(block)
+
+    /**
+     * Declares a nullable binary field with the given parameters.
+     * This function is used to create a field that holds a nullable binary value.
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the binary field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun nullableBinaryField(
+        noinline preProcessor: ((BinarySource) -> BinarySource)? = null,
+        require: ValueRequirement<BinarySource>? = null,
+        noinline block: FieldBuilderScope<BinarySource?>.() -> Unit = {}
+    ) = Type.Binary(preProcessor, require).nullable.field(block)
+
+    /**
+     * Declares a form list field with the given parameters.
+     * This function is used to create a field that holds a list of forms of type [T].
+     *
+     * @param elementPreprocessor Optional lambda to preprocess each form before validation or usage.
+     * @param requireElement Optional value requirement for each form in the list.
+     * @param listPreProcessor Optional lambda to preprocess the list before validation or usage.
+     * @param requireList Optional value requirement for the list field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <reified T : AbstractForm> formListField(
+        noinline elementPreprocessor: ((T) -> T)? = null,
+        requireElement: ValueRequirement<T>? = null,
+        noinline listPreProcessor: ((List<T>) -> List<T>)? = null,
+        requireList: ValueRequirement<List<T>>? = null,
+        noinline block: FieldBuilderScope<List<T>>.() -> Unit = {}
+    ) = form(
+        classFormFactory(T::class),
+        elementPreprocessor,
+        requireElement
+    ).listField(
+        listPreProcessor = listPreProcessor,
+        requireList = requireList,
+        block = block
+    )
+
+    /**
+     * Declares a nullable form list field with the given parameters.
+     * This function is used to create a field that holds a nullable list of forms of type [T].
+     *
+     * @param elementPreProcessor Optional lambda to preprocess each form before validation or usage.
+     * @param requireElement Optional value requirement for each form in the list.
+     * @param listPreProcessor Optional lambda to preprocess the list before validation or usage.
+     * @param requireList Optional value requirement for the list field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <reified T : AbstractForm> nullableFormListField(
+        noinline elementPreProcessor: ((T) -> T)? = null,
+        requireElement: ValueRequirement<T>? = null,
+        noinline listPreProcessor: ((List<T>) -> List<T>)? = null,
+        requireList: ValueRequirement<List<T>>? = null,
+        noinline block: FieldBuilderScope<List<T>?>.() -> Unit = {}
+    ) = form(
+        formFactory = classFormFactory(T::class),
+        preProcessor = elementPreProcessor,
+        requirement = requireElement
+    ).nullableListField(
+        listPreProcessor = listPreProcessor,
+        requireList = requireList,
+        block = block
+    )
+
+    /**
+     * Declares a form field with the given parameters.
+     * This function is used to create a field that holds a nested form of type [T].
+     *
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the form field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <reified T : Form> formField(
+        noinline preProcessor: ((T) -> T)? = null,
+        require: ValueRequirement<T>? = null,
+        noinline block: FieldBuilderScope<T>.() -> Unit = {}
+    ) = form(
+        classFormFactory(T::class),
+        preProcessor,
+        require
+    ).field(block)
+
+    /**
+     * Declares a map field with the given parameters.
+     * This function is used to create a field that holds a map of key-value pairs.
+     *
+     * @param keyType Type of the keys in the map.
+     * @param valueType Type of the values in the map.
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the map field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <K, V> mapField(
+        keyType: Type<K>,
+        valueType: Type<V>,
+        noinline preProcessor: ((Map<K, V>) -> Map<K, V>)? = null,
+        require: ValueRequirement<Map<K, V>>? = null,
+        noinline block: FieldBuilderScope<Map<K, V>>.() -> Unit = {}
+    ) = map(keyType, valueType, preProcessor, require).field(block)
+
+    /**
+     * Declares a nullable map field with the given parameters.
+     * This function is used to create a field that holds a nullable map of key-value pairs.
+     *
+     * @param keyType Type of the keys in the map.
+     * @param valueType Type of the values in the map.
+     * @param preProcessor Optional lambda to preprocess the value before validation or usage.
+     * @param require Optional value requirement for the map field.
+     * @param block A lambda that configures the field using [FieldBuilderScope].
+     * @return the created field.
+     */
+    protected inline fun <K, V> nullableMapField(
+        keyType: Type<K>,
+        valueType: Type<V>,
+        noinline preProcessor: ((Map<K, V>) -> Map<K, V>)? = null,
+        require: ValueRequirement<Map<K, V>>? = null,
+        noinline block: FieldBuilderScope<Map<K, V>?>.() -> Unit = {}
+    ) = map(keyType, valueType, preProcessor, require).nullable.field(block)
+
+    //endregion
+
+    //region Enabled Rules declaration
+
+    /**
+     * Creates a [FieldRequirements] instance with the provided field requirement with a logical AND operation.
+     * May be used to define `enabledRules` for a field.
+     * @param rules The field requirements to include in the [FieldRequirements].
+     */
+    protected inline fun rules(vararg rules: FieldRequirement<*>) = FieldRequirements(rules.toList(), LogicOp.And)
+
+    /**
+     * Creates a [FieldRequirements] instance with the provided field requirements with a logical OR operation.
+     * May be used to define `enabledRules` for a field.
+     * @param rules The field requirements to include in the [FieldRequirements].
+     */
+    protected inline fun orRules(vararg rules: FieldRequirement<*>) = FieldRequirements(rules.toList(), LogicOp.Or)
+
+    /**
+     * Creates a [FieldRequirements] instance with the provided field requirements with a logical XOR operation.
+     * May be used to define `enabledRules` for a field.
+     * @param rules The field requirements to include in the [FieldRequirements].
+     */
+    protected inline fun xorRules(vararg rules: FieldRequirement<*>) = FieldRequirements(rules.toList(), LogicOp.Xor)
+
+    /**
+     * Creates a [FieldRequirements] instance with a single field requirement with a logical AND operation.
+     * May be used to define `enabledRules` for a field.
+     * @param rule The field requirement to include in the [FieldRequirements].
+     */
+    protected inline fun rule(rule: FieldRequirement<*>) = rules(rule)
 
     /**
      * Creates a requirement for the value of the field.
      * @receiver the property of the field that requires some value format.
      * @param requirement the value requirement for the field.
      */
-    infix fun <T> KProperty<T>.require(
+    protected inline infix fun <T> KProperty<T>.require(
         requirement: ValueRequirement<T>
     ) = getFieldByProperty(this)!!.require(requirement)
+
+    //endregion
 
     /**
      * Internal function that reads the specification of the form from the class.
@@ -186,96 +666,182 @@ abstract class Form : AbstractForm {
     }
 
     /**
-     * Returns a string representation of the form data.
-     * This is useful for debugging purposes.
-     */
-    override fun toString(): String {
-        val className = this::class.simpleName ?: "Form"
-        val fieldsString = data.entries.joinToString(", ") { (key, value) ->
-            "$key=$value"
-        }
-        return "$className($fieldsString)"
-    }
-
-    /**
-     * Compares this form with another object for equality.
-     * Two forms are considered equal if they have the same class and the same data.
-     * @param other the object to compare with.
-     * @return true if the forms are equal, false otherwise.
-     */
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is Form) return false
-        if (this::class != other::class) return false
-        return data == other.data
-    }
-
-    /**
-     * Returns the hash code of the form.
-     * The hash code is computed based on the class and the data of the form.
-     * @return the hash code of the form.
-     */
-    override fun hashCode(): Int {
-        return 31 * this::class.hashCode() + data.hashCode()
-    }
-
-    /**
      * Field of the form.
      */
-    class Field<T> internal constructor(
-        private val fieldSpec: FieldSpec<T>
+    inner class Field<T> internal constructor(
+        type: Type<T>,
+        defaultValue: T?,
+        name: CharSequence?,
+        description: CharSequence?,
+        descriptionDetailed: CharSequence?,
+        orderKey: Int,
+        id: String,
+        enabledRules: FieldRequirements,
+        annotations: List<Annotation>
     ) : AbstractField<T> {
 
         internal var property: KProperty<*>? = null
 
-        operator fun getValue(
-            thisRef: Form,
-            property: KProperty<*>
-        ): T {
-            if (!thisRef::data.isInitialized) {
-                throw IllegalStateException("Form data is not initialized. Make sure to call Form.initialize() before accessing fields.")
+        private val _fieldSpec by lazy {
+            object : FieldSpec<T> {
+                override val id by lazy { resolveFieldId(id, property) }
+                override val type get() = type
+                override val owner get() = this@Form
+                override val defaultValue get() = defaultValue
+                override val name get() = name
+                override val description get() = description
+                override val descriptionDetailed get() = descriptionDetailed
+                override val orderKey get() = orderKey
+                override val enabledRules get() = enabledRules
+                override val annotations get() = annotations + (property?.annotations ?: emptyList())
+                override val accessScope: AccessScope get() = AccessScope.None
             }
-            // Find the field by its id (property name)
-            @Suppress("UNCHECKED_CAST")
-            return thisRef.data[property.name] as? T
-                ?: throw IllegalStateException("Field '${property.name}' is not set or has an incorrect type.")
         }
 
-        override fun spec(): FieldSpec<T> = object : FieldSpec<T> by fieldSpec {
-            override val id by lazy { resolveFieldId(fieldSpec.id, property) }
-        }
+        operator fun getValue(thisRef: Form, property: KProperty<*>): T = thisRef[this]
 
-        private fun resolveFieldId(id: String, property: KProperty<*>?): String {
+        override fun spec(): FieldSpec<T> = _fieldSpec
+
+        private inline fun resolveFieldId(id: String, property: KProperty<*>?): String {
             return id.ifEmpty {
                 // When id is not provided, use the property name
-                property?.name ?: throw IllegalStateException()
+                property?.name ?: throw FormDeclarationException(
+                    "Cannot resolve field ID: no property name available."
+                )
             }
         }
-
     }
 
-    class BuilderScope<T : Form>
+    /**
+     * Builder scope for creating forms.
+     */
+    class BuilderScope<T : AbstractForm>
     @PublishedApi
-    internal constructor(formClass: KClass<T>) {
+    internal constructor(
+        formFactory: () -> T,
+        val validationConfig: ValidationConfig
+    ) {
 
-        private val data: MutableMap<String, Any?> = mutableMapOf()
+        private val _form = formFactory()
+        private val _data: MutableMap<String, Any?> = LinkedHashMap(_form.fields.size)
 
-        val key: T = classFormFactory(formClass).invoke()
+        /**
+         * Reference to the form being built.
+         *
+         * Should be used to access the form's properties and put values into them.
+         *
+         * Example:
+         *
+         * ```kotlin
+         * val key: MyForm = build {
+         *     key::exampleField put "example value"
+         * }
+         * ```
+         */
+        val key: T = _form
 
-        infix fun <T> KProperty<T>.put(value: T?) {
-            data[this.name] = value
+        /**
+         * Puts all fields from another form into this form's data map.
+         * This operation is lenient what means that it does not check
+         * if the fields from the other form are compatible with this form.
+         *
+         * Possible exceptions will be thrown after calling [build] method if data is not compatible.
+         */
+        fun merge(other: AbstractForm) = merge(other.data())
+
+        /**
+         * Puts all fields from another map into this form's data map.
+         * This operation is lenient what means that it does not check
+         * if the fields from the other map are compatible with this form.
+         *
+         * Possible exceptions will be thrown after calling [build] method if data is not compatible.
+         */
+        fun merge(other: Map<String, *>) {
+            _data.putAll(other)
         }
 
-        inline infix fun <reified T : Form> KProperty<T>.put(block: BuilderScope<T>.() -> Unit)
-        = put(build<T>(block))
-
-        fun build(): T {
-            key.initialize(data)
-            return key
+        /**
+         * Puts a value into the form's data map.
+         * @receiver the key of the form to put the value into.
+         * @param value the value to put into the form's data map.
+         */
+        infix fun String.put(value: Any?) {
+            _data[this] = value
         }
+
+        @JvmName("p1")
+        infix fun KProperty<Long>.put(value: Number?) = name put value?.toLong()
+
+        @JvmName("p1n")
+        infix fun KProperty<Long?>.put(value: Number?) = name put value?.toLong()
+
+        @JvmName("p2")
+        infix fun KProperty<Double>.put(value: Number?) = name put value?.toDouble()
+
+        @JvmName("p2n")
+        infix fun KProperty<Double?>.put(value: Number?) = name put value?.toDouble()
+
+        @JvmName("p3")
+        inline infix fun KProperty<String>.put(value: String?) = name put value
+
+        @JvmName("p3n")
+        infix fun KProperty<String?>.put(value: String?) = name put value
+
+        @JvmName("p4")
+        inline infix fun KProperty<Boolean>.put(value: Boolean?) = name put value
+
+        @JvmName("p4n")
+        inline infix fun KProperty<Boolean?>.put(value: Boolean?) = name put value
+
+        @JvmName("p5")
+        inline infix fun KProperty<BinarySource>.put(value: BinarySource?) = name put value
+
+        @JvmName("p5n")
+        inline infix fun KProperty<BinarySource?>.put(value: BinarySource?) = name put value
+
+        @JvmName("p6")
+        inline infix fun <T : Enum<T>> KProperty<Enum<T>>.put(value: T?) = name put value
+
+        @JvmName("p6n")
+        inline infix fun <T : Enum<T>> KProperty<Enum<T>?>.put(value: T?) = name put value
+
+        @JvmName("p7")
+        inline infix fun <T : AbstractForm> KProperty<T>.putForm(value: T?) = name put value
+
+        @JvmName("p7n")
+        inline infix fun <T : AbstractForm> KProperty<T?>.putForm(value: T?) = name put value
+
+        @JvmName("p8")
+        inline infix fun <K, V> KProperty<Map<K, V>>.put(value: Map<K, V>?) = name put value
+
+        @JvmName("p8n")
+        inline infix fun <K, V> KProperty<Map<K, V>?>.put(value: Map<K, V>?) = name put value
+
+        @JvmName("p9")
+        inline infix fun <T> KProperty<List<T>>.put(value: List<T>?) = name put value
+
+        @JvmName("p9n")
+        inline infix fun <T> KProperty<List<T>?>.put(value: List<T>?) = name put value
+
+        /**
+         * Puts a field into the form's data map.
+         * @receiver the property of the form to put the field into.
+         * @param validationConfig the configuration for validation of the field.
+         * @param block the block to configure the field.
+         */
+        inline fun <reified T : AbstractForm> KProperty<T>.put(
+            validationConfig: ValidationConfig = this@BuilderScope.validationConfig,
+            noinline block: BuilderScope<T>.() -> Unit
+        ) = name.put(build<T>(validationConfig, block))
+
+        /**
+         * Builds the form with the provided data and validation configuration.
+         * This method should be called after all fields are set.
+         * @return the built form of type [T].
+         */
+        fun build(): T = build(_form, _data, validationConfig)
 
     }
-
 
 }
 
@@ -292,30 +858,18 @@ fun Form.getFieldById(id: String): AbstractField<*>? = fields.find { it.id == id
  * @return the field if found, or null if not found.
  */
 @Suppress("UNCHECKED_CAST")
-fun <T> Form.getFieldByProperty(property: KProperty<T>): AbstractField<T>? {
-    return fields
-        .mapNotNull { it as? Field<T> }
-        .find { it.property?.name == property.name }
-}
-
-/**
- * Builds a form of type [T] using the provided block.
- * The block is executed in the context of [Form.BuilderScope].
- *
- * @param block the block to configure the form.
- * @return the built form of type [T].
- */
-inline fun <reified T : Form> build(block: Form.BuilderScope<T>.() -> Unit): T =
-    Form.BuilderScope(T::class).apply(block).build()
+fun <T> Form.getFieldByProperty(property: KProperty<T>): AbstractField<T>? = fields
+    .mapNotNull { it as? Field<T> }
+    .find { it.property?.name == property.name }
 
 fun main() {
 
     val appearance: Appearance = build {
         key::customColors put listOf(0xFF0000, 0x00FF00, 0x0000FF)
-        key::address put {
+        key::address.put {
             key::street put "123 Main St"
             key::city put "New York"
-            key::zipCode put {
+            key::zipCode.put {
                 key::part1 put 100
                 key::part2 put 1
             }
@@ -375,5 +929,4 @@ fun main() {
 //    }
 //    return currentField
 //}
-
 

@@ -1,4 +1,4 @@
-package data
+package common
 
 interface LocalizedString : CharSequence {
 

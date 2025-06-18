@@ -1,5 +1,8 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package data.binary
 
+import common.parseBase64
 import java.io.InputStream
 
 /**
@@ -46,6 +49,15 @@ class ArrayBinarySource(
     override val mimeType: MimeType,
     private val data: ByteArray
 ) : BinarySource {
+
+    companion object {
+        /**
+         * Creates an [ArrayBinarySource] from a base64 encoded string.
+         * @param base64 The base64 encoded string representing the binary data.
+         * @return An [ArrayBinarySource] if the base64 string is valid, null otherwise.
+         */
+        inline fun fromBase64(base64: String): ArrayBinarySource? = parseBase64(base64)
+    }
 
     private val hashCode: Int by lazy {
         var result = mimeType.hashCode()

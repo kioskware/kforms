@@ -3,6 +3,7 @@
 package type
 
 import AbstractForm
+import FormDeclarationException
 import data.binary.BinarySource
 import requirements.ValueRequirement
 import kotlin.reflect.KClass
@@ -224,7 +225,7 @@ sealed interface Type<T> {
         val valueType: Type<V>,
         override val preProcessor: ((Map<K, V>) -> Map<K, V>)? = null,
         override val requirement: ValueRequirement<Map<K, V>>? = null
-    ) : Complex<Map<K, V>> {
+    ) : Multi<Map<K, V>> {
         override val kClass: KClass<Map<K, V>> get() = Map::class as KClass<Map<K, V>>
         override val typeId: Byte get() = 0x09
     }
@@ -413,7 +414,7 @@ val <T : Any> Type<T?>.nonNull: Type<T>
 fun <T : AbstractForm> classFormFactory(
     formClass: KClass<T>
 ): () -> T = {
-    formClass.constructors.firstOrNull()?.call() ?: throw IllegalArgumentException(
+    formClass.constructors.firstOrNull()?.call() ?: throw FormDeclarationException(
         "Form class must have a no-arg constructor"
     )
 }
