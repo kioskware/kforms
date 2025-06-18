@@ -204,7 +204,7 @@ abstract class Form : AbstractForm {
     //region Field Declaration
 
     /**
-     * Declares single value field of type [ValueType] with the given parameters.
+     * Declares single value field of type [T] with the given parameters.
      * @param type Type of the field
      * @param defaultValue Default value of the field
      * @param name Name of the field
@@ -214,6 +214,7 @@ abstract class Form : AbstractForm {
      * higher numbers are positioned first, default is 0
      * @param id ID of the field or empty string to use property or class name for as an ID
      * @param enabledRules Rules that enable or disable the field
+     * @param accessScope Access scope required to access the field.
      * @param annotations Additional annotations to be added to the field specification.
      */
     inner class FieldBuilderScope<T>(
@@ -225,7 +226,7 @@ abstract class Form : AbstractForm {
         var orderKey: Int = 0,
         var id: String = "",
         var enabledRules: FieldRequirements = FieldRequirements.None,
-        val accessScope: AccessScope = AccessScope.None,
+        var accessScope: AccessScope? = AccessScope.None,
         var annotations: List<Annotation> = emptyList()
     ) {
         /**
@@ -669,7 +670,7 @@ abstract class Form : AbstractForm {
         id: String,
         enabledRules: FieldRequirements,
         annotations: List<Annotation>,
-        accessScope: AccessScope
+        accessScope: AccessScope?
     ) : AbstractField<T> {
 
         internal var property: KProperty<*>? = null
@@ -686,7 +687,7 @@ abstract class Form : AbstractForm {
                 override val orderKey get() = orderKey
                 override val enabledRules get() = enabledRules
                 override val annotations get() = annotations + (property?.annotations ?: emptyList())
-                override val accessScope: AccessScope get() = accessScope
+                override val accessScope: AccessScope? get() = accessScope
             }
         }
 
