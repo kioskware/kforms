@@ -225,6 +225,7 @@ abstract class Form : AbstractForm {
         var orderKey: Int = 0,
         var id: String = "",
         var enabledRules: FieldRequirements = FieldRequirements.None,
+        val accessScope: AccessScope = AccessScope.None,
         var annotations: List<Annotation> = emptyList()
     ) {
         /**
@@ -240,7 +241,8 @@ abstract class Form : AbstractForm {
             orderKey = orderKey,
             id = id,
             enabledRules = enabledRules,
-            annotations = annotations
+            annotations = annotations,
+            accessScope = accessScope
         )
     }
 
@@ -666,7 +668,8 @@ abstract class Form : AbstractForm {
         orderKey: Int,
         id: String,
         enabledRules: FieldRequirements,
-        annotations: List<Annotation>
+        annotations: List<Annotation>,
+        accessScope: AccessScope
     ) : AbstractField<T> {
 
         internal var property: KProperty<*>? = null
@@ -683,7 +686,7 @@ abstract class Form : AbstractForm {
                 override val orderKey get() = orderKey
                 override val enabledRules get() = enabledRules
                 override val annotations get() = annotations + (property?.annotations ?: emptyList())
-                override val accessScope: AccessScope get() = AccessScope.None
+                override val accessScope: AccessScope get() = accessScope
             }
         }
 
