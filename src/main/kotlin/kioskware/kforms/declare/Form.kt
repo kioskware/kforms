@@ -14,6 +14,7 @@ import kioskware.kforms.requirements.ValueRequirement
 import kioskware.kforms.requirements.require
 import kioskware.kforms.scopes.AccessScope
 import kioskware.kforms.type.*
+import kotlin.experimental.ExperimentalTypeInference
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty
 import kotlin.reflect.KProperty1
@@ -215,19 +216,36 @@ abstract class Form : AbstractForm {
      * @param enabledRules Rules that enable or disable the field
      * @param accessScope Access scope required to access the field.
      * @param annotations Additional annotations to be added to the field specification.
+     * @param examples Example values of the field, used for documentation purposes or for AI models.
+     * @param sensitive Whether the field may hold sensitive data or not.
      */
+    @KFormDsl
     inner class FieldBuilderScope<T>(
         val type: Type<T>,
-        var defaultValue: T? = null,
-        var name: CharSequence? = null,
-        var description: CharSequence? = null,
-        var descriptionDetailed: CharSequence? = null,
-        var orderKey: Int = 0,
-        var id: String = "",
-        var enabledRules: FieldRequirements = FieldRequirements.None,
-        var accessScope: AccessScope? = AccessScope.None,
-        var annotations: List<Annotation> = emptyList()
+        @KFormDsl var defaultValue: T? = null,
+        @KFormDsl var name: CharSequence? = null,
+        @KFormDsl var description: CharSequence? = null,
+        @KFormDsl var descriptionDetailed: CharSequence? = null,
+        @KFormDsl var orderKey: Int = 0,
+        @KFormDsl var id: String = "",
+        @KFormDsl var enabledRules: FieldRequirements = FieldRequirements.None,
+        @KFormDsl var accessScope: AccessScope? = AccessScope.None,
+        @KFormDsl var annotations: List<Annotation> = emptyList(),
+        @KFormDsl var examples: List<T>? = null,
+        @KFormDsl var sensitive: Boolean = false
     ) {
+
+        private var _extras: Map<String, String>? = null
+
+        /**
+         * Sets the extras for the field.
+         * Extras are additional metadata for the field, used for documentation purposes or for AI models.
+         */
+        @OptIn(ExperimentalTypeInference::class)
+        @KFormDsl
+        fun extras(@BuilderInference builderAction: MutableMap<String, String>.() -> Unit)
+                = buildMap(builderAction).let { _extras = it }
+
         /**
          * Builds the field with the specified parameters.
          * @return the created field.
@@ -242,8 +260,12 @@ abstract class Form : AbstractForm {
             id = id,
             enabledRules = enabledRules,
             annotations = annotations,
-            accessScope = accessScope
+            accessScope = accessScope,
+            examples = examples,
+            sensitive = sensitive,
+            extras = _extras,
         )
+
     }
 
     /**
@@ -623,7 +645,7 @@ abstract class Form : AbstractForm {
      */
     protected inline infix fun <T> KProperty<T>.require(
         requirement: ValueRequirement<T>
-    ) = getFieldByProperty(this)!!.require(requirement)
+    ) = name.require(requirement)
 
     //endregion
 
@@ -669,7 +691,10 @@ abstract class Form : AbstractForm {
         id: String,
         enabledRules: FieldRequirements,
         annotations: List<Annotation>,
-        accessScope: AccessScope?
+        accessScope: AccessScope?,
+        sensitive: Boolean,
+        examples: List<T>?,
+        extras: Map<String, String>?
     ) : AbstractField<T> {
 
         internal var property: KProperty<*>? = null
@@ -687,6 +712,9 @@ abstract class Form : AbstractForm {
                 override val enabledRules get() = enabledRules
                 override val annotations get() = annotations + (property?.annotations ?: emptyList())
                 override val accessScope: AccessScope? get() = accessScope
+                override val sesnitive get() = sensitive
+                override val examples get() = examples
+                override val extras get() = extras
             }
         }
 

@@ -27,13 +27,18 @@ interface AbstractField<T> {
  * @property defaultValue Default value of the field
  * @property id ID of the field or empty string to use property or class name for as
  * an ID
- * @property name Name of the field
- * @property description Description of the field
- * @property descriptionDetailed Detailed description of the field
+ * @property name Name of the field.
+ * @property description Description of the field.
+ * @property descriptionDetailed Detailed description of the field.
  * @property orderKey Order key of the field. Defines the order of the field in the form.
  * higher numbers are positioned first, default is 0
  * if the field is a single value or a list of values
  * @property enabledRules Rules that enable or disable the field
+ * @property accessScope Access scope of the field, defines who can access the field.
+ * @property owner The form that owns this field
+ * @property sesnitive Whether the field may hold sensitive data or not.
+ * @property examples Example values of the field, used for documentation purposes or for AI models.
+ * @property extras Additional metadata for the field, used for documentation purposes or for AI models.
  *
  */
 interface FieldSpec<T> : KAnnotatedElement {
@@ -41,11 +46,14 @@ interface FieldSpec<T> : KAnnotatedElement {
     val type: Type<T>
     val owner: AbstractForm
     val name: CharSequence? get() = null
+    val sesnitive: Boolean get() = false
+    val examples: List<T>? get() = null
     val description: CharSequence? get() = null
     val descriptionDetailed: CharSequence? get() = null
     val defaultValue: T? get() = null
     val orderKey: Int get() = 0
     val enabledRules: FieldRequirements get() = FieldRequirements.None
+    val extras: Map<String, String>? get() = null
     val accessScope: AccessScope? get() = AccessScope.None
 }
 

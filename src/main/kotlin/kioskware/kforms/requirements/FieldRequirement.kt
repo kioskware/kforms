@@ -1,16 +1,15 @@
 package kioskware.kforms.requirements
 
-import kioskware.kforms.AbstractField
 import kioskware.kforms.common.LogicOp
 
 /**
  * Pair of a field and its requirement.
  * Stores a value requirement associated with a field.
- * @property field The field associated with the requirement.
+ * @property fieldId The identifier of the field that this requirement applies to.
  * @property requirement The value requirement for the field, or null if there is no requirement.
  */
 data class FieldRequirement<T>(
-    val field: AbstractField<T>,
+    val fieldId: String,
     val requirement: ValueRequirement<T>?
 )
 
@@ -38,6 +37,6 @@ data class FieldRequirements(
  * @receiver the field that requires some value format.
  * @param requirement the value requirement for the field.
  */
-infix fun <T> AbstractField<T>.require(
+infix fun <T> String.require(
     requirement: ValueRequirement<T>
 ) = FieldRequirement(this, requirement)
