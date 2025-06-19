@@ -718,7 +718,7 @@ abstract class KForm : AbstractForm {
                 override val enabledRules get() = enabledRules
                 override val annotations get() = annotations + (property?.annotations ?: emptyList())
                 override val accessScope: AccessScope? get() = accessScope
-                override val sesnitive get() = sensitive
+                override val sensitive get() = sensitive
                 override val examples get() = examples
                 override val extras get() = extras
             }

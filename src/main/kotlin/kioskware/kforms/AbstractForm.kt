@@ -150,6 +150,21 @@ fun <T : AbstractForm> build(
 ): T = KForm.BuilderScope(formFactory, validationConfig).apply(block).build()
 
 /**
+ * Builds a form of type [T] using the provided class and block.
+ * The block is executed in the context of [KForm.BuilderScope].
+ *
+ * @param formClass the class of the form to build.
+ * @param validationConfig the configuration for validation of the form data.
+ * @param block the block to provide the form data.
+ * @return the built form of type [T].
+ */
+fun <T : AbstractForm> build(
+    formClass: KClass<T>,
+    validationConfig: ValidationConfig = ValidationConfig.Default,
+    block: KForm.BuilderScope<T>.() -> Unit
+): T = build(classFormFactory(formClass), validationConfig, block)
+
+/**
  * Builds a form of type [T] using the provided block.
  * The block is executed in the context of [KForm.BuilderScope].
  *
@@ -222,5 +237,20 @@ fun <T : AbstractForm> build(
         data = initialData,
         validationConfig = validationConfig
     )
+}
+
+/**
+ * Copies the form with the provided data map.
+ * The data map is processed to match the form's fields and their types.
+ *
+ * @param validationConfig the configuration for validation of the form data.
+ * @return a new instance of the form with the provided data.
+ */
+inline fun <T : AbstractForm> T.copy(
+    validationConfig: ValidationConfig = ValidationConfig.Default,
+    crossinline block: KForm.BuilderScope<out T>.() -> Unit = {}
+): T = build(this::class, validationConfig) {
+    merge(this@copy)
+    block(this)
 }
 

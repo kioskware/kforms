@@ -36,7 +36,7 @@ interface AbstractField<T> {
  * @property enabledRules Rules that enable or disable the field
  * @property accessScope Access scope of the field, defines who can access the field.
  * @property owner The form that owns this field
- * @property sesnitive Whether the field may hold sensitive data or not.
+ * @property sensitive Whether the field may hold sensitive data or not.
  * @property examples Example values of the field, used for documentation purposes or for AI models.
  * @property extras Additional metadata for the field, used for documentation purposes or for AI models.
  *
@@ -46,7 +46,7 @@ interface FieldSpec<T> : KAnnotatedElement {
     val type: Type<T>
     val owner: AbstractForm
     val name: CharSequence? get() = null
-    val sesnitive: Boolean get() = false
+    val sensitive: Boolean get() = false
     val examples: List<T>? get() = null
     val description: CharSequence? get() = null
     val descriptionDetailed: CharSequence? get() = null
