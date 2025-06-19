@@ -2,7 +2,7 @@ package kioskware.kforms
 
 import kioskware.kforms.data.FormDataMap
 import kioskware.kforms.data.ValidationConfig
-import kioskware.kforms.declare.Form
+import kioskware.kforms.declare.KForm
 import kioskware.kforms.type.Type
 import kioskware.kforms.type.classFormFactory
 import kioskware.kforms.type.form
@@ -136,7 +136,7 @@ val <T : AbstractForm> T.type: Type.FormType<T>
 
 /**
  * Builds a form of type [T] using the provided class and block.
- * The block is executed in the context of [Form.BuilderScope].
+ * The block is executed in the context of [KForm.BuilderScope].
  *
  * @param formClass the class of the form to build.
  * @param validationConfig the configuration for validation of the form data.
@@ -146,19 +146,19 @@ val <T : AbstractForm> T.type: Type.FormType<T>
 fun <T : AbstractForm> build(
     formFactory: () -> T,
     validationConfig: ValidationConfig = ValidationConfig.Default,
-    block: Form.BuilderScope<T>.() -> Unit
-): T = Form.BuilderScope(formFactory, validationConfig).apply(block).build()
+    block: KForm.BuilderScope<T>.() -> Unit
+): T = KForm.BuilderScope(formFactory, validationConfig).apply(block).build()
 
 /**
  * Builds a form of type [T] using the provided block.
- * The block is executed in the context of [Form.BuilderScope].
+ * The block is executed in the context of [KForm.BuilderScope].
  *
  * @param block the block to configure the form.
  * @return the built form of type [T].
  */
 inline fun <reified T : AbstractForm> build(
     validationConfig: ValidationConfig = ValidationConfig.Default,
-    noinline block: Form.BuilderScope<T>.() -> Unit
+    noinline block: KForm.BuilderScope<T>.() -> Unit
 ): T = build(classFormFactory(T::class), validationConfig, block)
 
 /**

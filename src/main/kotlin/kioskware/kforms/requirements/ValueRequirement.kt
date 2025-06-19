@@ -1,6 +1,5 @@
 package kioskware.kforms.requirements
 
-import kioskware.kforms.AbstractForm
 import kioskware.kforms.FieldValueException
 import kioskware.kforms.InvalidFieldValueException
 import kioskware.kforms.common.LogicOp
@@ -311,6 +310,20 @@ data class ValueRequirements<T>(
 fun <T> isEqual(vararg to: T) = ValueRequirement.OneOf(to.toList())
 
 /**
+ * Requires the value to be equal to the specified value.
+ * @param to The value that the value should be equal to.
+ * @return A [ValueRequirement] that checks if the value is equal to the specified value.
+ */
+val isTrue = isEqual(true)
+
+/**
+ * Requires the value to be equal to the specified value.
+ * @param to The value that the value should be equal to.
+ * @return A [ValueRequirement] that checks if the value is equal to the specified value.
+ */
+val isFalse = isEqual(false)
+
+/**
  * Requires the value to be a multiple of a specified number.
  * @param multiple The number that the value should be a multiple of.
  * @return A [ValueRequirement] that checks if the value is a multiple of the specified number.
@@ -455,10 +468,53 @@ fun isPattern(pattern: Regex, caseSensitive: Boolean = true, patternDescription:
  * @param range The range of valid sizes in bytes.
  * @return A [ValueRequirement] that checks if the binary size is within the specified range.
  */
-fun isSizeInRange(range: IntRange) = ValueRequirement.BinarySizeRange(
+fun isByteSizeInRange(range: IntRange) = ValueRequirement.BinarySizeRange(
     min = range.first,
     max = range.last
 )
+
+/**
+ * Requires the list size to be within the specified range.
+ * @param range The range of valid sizes.
+ * @return A [ValueRequirement] that checks if the list size is within the specified range.
+ */
+fun isListSizeInRange(range: IntRange) = ValueRequirement.ListSizeRange(
+    min = range.first,
+    max = range.last
+)
+
+/**
+ * Requires the map size to be within the specified range.
+ * @param range The range of valid sizes.
+ * @return A [ValueRequirement] that checks if the map size is within the specified range.
+ */
+fun isMapSizeInRange(range: IntRange) = ValueRequirement.MapSizeRange(
+    min = range.first,
+    max = range.last
+)
+
+/**
+ * Requires the list to contain unique items.
+ * @return A [ValueRequirement] that checks if the list contains unique items.
+ */
+val isUniqueItemsList: ValueRequirement<List<*>> = ValueRequirement.ListUniqueItems
+
+/**
+ * Requires the map to contain unique values.
+ * @return A [ValueRequirement] that checks if the map contains unique values.
+ */
+val isUniqueValuesMap: ValueRequirement<Map<*, *>> = ValueRequirement.MapUniqueValues
+
+/**
+ * Requires the binary data to match at least one of the specified MIME types.
+ * @param mimeTypes The list of valid MIME types.
+ * @return A [ValueRequirement] that checks if the binary data matches one of the specified MIME types.
+ */
+fun isMimeTypeOneOf(vararg mimeTypes: MimeType): ValueRequirement<BinarySource> =
+    ValueRequirement.BinaryOneOfMimeTypes(mimeTypes.toList())
+
+operator fun <T> ValueRequirement<T>.not(): ValueRequirement<T> =
+    ValueRequirement.Not(this)
 
 infix fun <T> ValueRequirement<T>.and(other: ValueRequirement<T>):
         ValueRequirement<T> = ValueRequirements(listOf(this, other), LogicOp.And)

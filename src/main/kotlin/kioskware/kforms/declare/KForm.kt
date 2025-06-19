@@ -7,7 +7,7 @@ import kioskware.kforms.data.FormDataMap
 import kioskware.kforms.data.ValidationConfig
 import kioskware.kforms.data.binary.BinarySource
 import kioskware.kforms.data.toFormDataMap
-import kioskware.kforms.declare.Form.Field
+import kioskware.kforms.declare.KForm.Field
 import kioskware.kforms.requirements.FieldRequirement
 import kioskware.kforms.requirements.FieldRequirements
 import kioskware.kforms.requirements.ValueRequirement
@@ -31,7 +31,7 @@ import kotlin.reflect.jvm.isAccessible
  *
  * To create a form:
  *
- * 1. Extend the [Form] class.
+ * 1. Extend the [KForm] class.
  * Remember, it must be a regular class, not an `object` or `interface`.
  * Class may be open if you want to allow inheritance.
  *
@@ -92,7 +92,7 @@ import kotlin.reflect.jvm.isAccessible
  *
  */
 @Suppress("NOTHING_TO_INLINE")
-abstract class Form : AbstractForm {
+abstract class KForm : AbstractForm {
 
     companion object {
         /**
@@ -101,7 +101,7 @@ abstract class Form : AbstractForm {
          * We can cache the specs because by the convention,
          * specs are the same for each instance of the form with same class.
          */
-        private val _specCaches = mutableMapOf<KClass<out Form>, FormSpec>()
+        private val _specCaches = mutableMapOf<KClass<out KForm>, FormSpec>()
     }
 
     private var _data: FormDataMap? = null
@@ -113,8 +113,8 @@ abstract class Form : AbstractForm {
     private val _initializer = object : AbstractFormInitializer() {
         override fun onInitialize(data: Map<String, *>, validationConfig: ValidationConfig) {
             _afterFirstInit = true // Mark that the form has been initialized at least once
-            this@Form._data = data.toFormDataMap(this@Form, validationConfig)
-            this@Form._hashCode = null // Reset hash code to ensure it is recalculated
+            this@KForm._data = data.toFormDataMap(this@KForm, validationConfig)
+            this@KForm._hashCode = null // Reset hash code to ensure it is recalculated
         }
 
         override fun onDestroy() {
@@ -187,7 +187,7 @@ abstract class Form : AbstractForm {
      */
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is Form) return false
+        if (other !is KForm) return false
         if (this::class != other::class) return false
         return _data == other._data
     }
@@ -290,7 +290,7 @@ abstract class Form : AbstractForm {
         // Check if the field is already cached in the spec cache
         @Suppress("UNCHECKED_CAST")
         val cachedField =
-            _specCaches[this@Form::class]?.fields?.get(_fieldN++) as? Field<ValueType>
+            _specCaches[this@KForm::class]?.fields?.get(_fieldN++) as? Field<ValueType>
         if (cachedField != null) {
             return cachedField
         }
@@ -564,7 +564,7 @@ abstract class Form : AbstractForm {
      * @param block A lambda that configures the field using [FieldBuilderScope].
      * @return the created field.
      */
-    protected inline fun <reified T : Form> formField(
+    protected inline fun <reified T : KForm> formField(
         noinline preProcessor: ((T) -> T)? = null,
         require: ValueRequirement<T>? = null,
         noinline block: FieldBuilderScope<T>.() -> Unit = {}
@@ -659,10 +659,10 @@ abstract class Form : AbstractForm {
      * Internal function that reads the specification of the form from the class.
      */
     private fun resolveSpec() = object : FormSpec {
-        override val annotations: List<Annotation> = this@Form::class.annotations
+        override val annotations: List<Annotation> = this@KForm::class.annotations
         override val fields by lazy {
-            this@Form::class.memberProperties
-                .filterIsInstance<KProperty1<Form, *>>()
+            this@KForm::class.memberProperties
+                .filterIsInstance<KProperty1<KForm, *>>()
                 .mapNotNull { property ->
                     // Make the property accessible
                     property.isAccessible = true
@@ -676,7 +676,7 @@ abstract class Form : AbstractForm {
                     // Try to extract the field from the property,
                     // if it's not a field declaration,
                     // it will return null
-                    (property.getDelegate(this@Form) as? Field<*>).also {
+                    (property.getDelegate(this@KForm) as? Field<*>).also {
                         // If the field is found, set its property reference
                         it?.property = property
                     }
@@ -709,7 +709,7 @@ abstract class Form : AbstractForm {
             object : FieldSpec<T> {
                 override val id by lazy { resolveFieldId(id, property) }
                 override val type get() = type
-                override val owner get() = this@Form
+                override val owner get() = this@KForm
                 override val defaultValue get() = defaultValue
                 override val name get() = name
                 override val description get() = description
@@ -724,7 +724,7 @@ abstract class Form : AbstractForm {
             }
         }
 
-        operator fun getValue(thisRef: Form, property: KProperty<*>): T = thisRef[this]
+        operator fun getValue(thisRef: KForm, property: KProperty<*>): T = thisRef[this]
 
         override fun spec(): FieldSpec<T> = _fieldSpec
 
@@ -872,19 +872,19 @@ abstract class Form : AbstractForm {
 }
 
 /**
- * Gets the [Form.Field] by its ID.
+ * Gets the [KForm.Field] by its ID.
  * @param id the ID of the field.
  * @return the field if found, or null if not found.
  */
-fun Form.getFieldById(id: String): AbstractField<*>? = fields.find { it.id == id }
+fun KForm.getFieldById(id: String): AbstractField<*>? = fields.find { it.id == id }
 
 /**
- * Gets the [Form.Field] by its property.
+ * Gets the [KForm.Field] by its property.
  * @param property the property of the field.
  * @return the field if found, or null if not found.
  */
 @Suppress("UNCHECKED_CAST")
-fun <T> Form.getFieldByProperty(property: KProperty<T>): AbstractField<T>? = fields
+fun <T> KForm.getFieldByProperty(property: KProperty<T>): AbstractField<T>? = fields
     .mapNotNull { it as? Field<T> }
     .find { it.property?.name == property.name }
 
