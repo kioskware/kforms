@@ -55,20 +55,20 @@ import kotlin.reflect.jvm.isAccessible
  * Example usage:
  * ```kotlin
  *
- * open class File : Form() {
+ * open class File : KForm() {
  *
  *     val name by textField {
- *         name = "File Name",
+ *         name = "File Name"
  *         description = "Name of the file"
  *     }
  *
  *     val size by intField {
- *         name = "File Size",
+ *         name = "File Size"
  *         description = "Size of the file in bytes"
  *     }
  *
  *     val createdAt by intField {
- *         name = "Created At",
+ *         name = "Created At"
  *         description = "Creation date and time of the file"
  *     }
  *
@@ -77,12 +77,12 @@ import kotlin.reflect.jvm.isAccessible
  * class Directory : File() {
  *
  *     val files by formListField<File> {
- *         name = "Files",
+ *         name = "Files"
  *         description = "List of files in the directory"
  *     }
  *
  *     val subdirectories by formListField<Directory> {
- *         name = "Subdirectories",
+ *         name = "Subdirectories"
  *         description = "List of subdirectories in the directory"
  *     }
  *
@@ -157,7 +157,7 @@ abstract class KForm : AbstractForm {
         }
         // Check if the field is accessible
         // with current validation config
-        if (initializer().validationConfig.params.accessScope.grantsAccessTo(field.spec.accessScope)){
+        if (!initializer().validationConfig.params.accessScope.grantsAccessTo(field.spec.accessScope)){
             throw ForbiddenFieldAccessException(field.spec.id, this::class)
         }
         return _data?.let {

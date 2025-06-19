@@ -185,7 +185,7 @@ inline fun <reified T : AbstractForm> build(
  * @param validationConfig the configuration for validation of the form data.
  * @return the built form of type [T].
  */
-fun <T : AbstractForm> build(
+inline fun <T : AbstractForm> build(
     formFactory: () -> T,
     data: Map<String, *>,
     validationConfig: ValidationConfig = ValidationConfig.Default

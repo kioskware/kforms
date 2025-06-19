@@ -7,6 +7,7 @@ import kioskware.kforms.FormDeclarationException
 import kioskware.kforms.data.binary.BinarySource
 import kioskware.kforms.requirements.ValueRequirement
 import kotlin.reflect.KClass
+import kotlin.reflect.jvm.isAccessible
 
 /**
  * ## Types
@@ -414,7 +415,10 @@ val <T : Any> Type<T?>.nonNull: Type<T>
 fun <T : AbstractForm> classFormFactory(
     formClass: KClass<T>
 ): () -> T = {
-    formClass.constructors.firstOrNull()?.call() ?: throw FormDeclarationException(
+    formClass.constructors.find { it.parameters.isEmpty() }?.let {
+        it.isAccessible = true // Make the constructor accessible
+        it.call()
+    } ?: throw FormDeclarationException(
         "Form class must have a no-arg constructor"
     )
 }
