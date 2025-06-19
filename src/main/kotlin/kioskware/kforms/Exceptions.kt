@@ -86,6 +86,20 @@ class InvalidFieldValueException(
 abstract class DataAccessException : FormException()
 
 /**
+ * Exception thrown when trying to access a field that is forbidden.
+ * This can happen if the field is not accessible due to its access scope or other restrictions.
+ * @property fieldPath The path to the field in the form where the error occurred.
+ * @property formClass The class of the form
+ */
+data class ForbiddenFieldAccessException(
+    val fieldId: String,
+    val formClass: KClass<out AbstractForm>
+) : DataAccessException() {
+    override val message: String
+        get() = "Access to field '${fieldId}' in form '${formClass}' is forbidden"
+}
+
+/**
  * Exception thrown when trying to access a field by non-existing ID.
  * @property fieldId The ID of the field that was not found.
  */

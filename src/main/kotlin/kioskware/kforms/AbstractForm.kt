@@ -69,6 +69,13 @@ abstract class AbstractFormInitializer {
     private var currentValidation: ValidationConfig? = null
 
     /**
+     * Current validation configuration of the form.
+     * If the form is not initialized yet, returns the default validation configuration.
+     */
+    val validationConfig: ValidationConfig
+        get() = currentValidation ?: ValidationConfig.Default
+
+    /**
      * Initializes the form with the given data.
      * This function should be called before accessing any fields of the form.
      * Method used only for internal purposes.

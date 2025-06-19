@@ -27,7 +27,7 @@ interface BinarySource {
      * The stream should be closed after use.
      * Each call to this property should return a new instance of [InputStream].
      */
-    val outputStream: InputStream
+    val inputStream: InputStream
 
 }
 
@@ -67,7 +67,7 @@ class ArrayBinarySource(
     override val size: Long
         get() = data.size.toLong()
 
-    override val outputStream: InputStream
+    override val inputStream: InputStream
         get() = data.inputStream()
 
     override fun toString(): String {

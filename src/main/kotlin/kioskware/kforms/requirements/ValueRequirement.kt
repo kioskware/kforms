@@ -1,5 +1,6 @@
 package kioskware.kforms.requirements
 
+import kioskware.kforms.AbstractForm
 import kioskware.kforms.FieldValueException
 import kioskware.kforms.InvalidFieldValueException
 import kioskware.kforms.common.LogicOp
@@ -158,6 +159,20 @@ sealed interface ValueRequirement<T> {
             return value.size == value.toSet().size
         }
     }
+
+//    /**
+//     * Ensures that the provided list contains unique items based on specified fields.
+//     * @param byFields The list of fields to check for uniqueness.
+//     * If null, the entire item is considered for uniqueness.
+//     * This is useful for lists of [AbstractForm] items.
+//     */
+//    data class ListUniqueItemsBy(
+//        val byFields: List<String>
+//    ) : ValueRequirement<List<AbstractForm>> {
+//        override fun checkValid(value: List<AbstractForm>): Boolean {
+//            value[0].get()
+//        }
+//    }
 
     /**
      * Ensures that the provided map contains unique values.

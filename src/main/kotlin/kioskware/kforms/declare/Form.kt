@@ -13,6 +13,7 @@ import kioskware.kforms.requirements.FieldRequirements
 import kioskware.kforms.requirements.ValueRequirement
 import kioskware.kforms.requirements.require
 import kioskware.kforms.scopes.AccessScope
+import kioskware.kforms.scopes.grantsAccessTo
 import kioskware.kforms.type.*
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.reflect.KClass
@@ -146,17 +147,22 @@ abstract class Form : AbstractForm {
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun <T> get(field: AbstractField<T>): T {
-        if (field.spec.owner != this) {
+        // Check if the field belongs to this form
+        // compare by classes not instances, because
+        // fields are reused across instances of the same form class
+        if (field.spec.owner::class != this::class) {
             throw UnexpectedFieldException(field)
         }
-        return _data.let {
-            if (it == null) {
-                throw IllegalStateException("Form data is not initialized.")
-            }
-            @Suppress("UNCHECKED_CAST")
-            it[field.id] as T
+        // Check if the field is accessible
+        // with current validation config
+        if (initializer().validationConfig.params.accessScope.grantsAccessTo(field.spec.accessScope)){
+            throw ForbiddenFieldAccessException(field.spec.id, this::class)
         }
+        return _data?.let {
+            it[field.id] as T
+        } ?: throw IllegalStateException("Form data is not initialized.")
     }
 
     //region Any Methods
@@ -681,7 +687,7 @@ abstract class Form : AbstractForm {
     /**
      * Field of the form.
      */
-    inner class Field<T> internal constructor(
+    open inner class Field<T> internal constructor(
         type: Type<T>,
         defaultValue: T?,
         name: CharSequence?,

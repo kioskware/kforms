@@ -81,6 +81,10 @@ enum class ValidationMode {
 
 }
 
+/**
+ * Represents a map storing actual form data.
+ *
+ */
 interface FormDataMap : Map<String, Any?> {
 
     val form: AbstractForm
@@ -100,6 +104,14 @@ fun <T : AbstractForm> Map<String, Any?>.toFormDataMap(
     form: T,
     validationConfig: ValidationConfig = ValidationConfig.Default
 ): FormDataMap {
+
+    if (this is FormDataMap
+        && this.form == form
+        && this.validationConfig == validationConfig
+    ) {
+        return this
+    }
+
     val sm: MutableMap<String, Any?> = this.toMutableMap()
     return object : FormDataMap, Map<String, Any?> by sm {
 
