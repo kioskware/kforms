@@ -58,7 +58,7 @@ interface AbstractForm {
 interface FormSpec : KAnnotatedElement {
 
     /**
-     * Fields inside this form.
+     * Fields inside this form. There are no order guarantees.
      */
     val fields: List<AbstractField<*>>
 
@@ -82,7 +82,9 @@ abstract class AbstractFormInitializer {
      * To build a form with data, use builder methods instead.
      * @param data the data to initialize the form with.
      * @param validationConfig the configuration for validation of the form data.
+     * @throws IllegalStateException if the form is already initialized.
      */
+    @Throws(IllegalStateException::class)
     internal fun initialize(
         data: Map<String, *>,
         validationConfig: ValidationConfig
@@ -90,8 +92,8 @@ abstract class AbstractFormInitializer {
         if (isInitialized) {
             throw IllegalStateException("Form is already initialized.")
         }
-        onInitialize(data, validationConfig)
         currentValidation = validationConfig
+        onInitialize(data, validationConfig)
     }
 
     /**
@@ -114,6 +116,36 @@ abstract class AbstractFormInitializer {
     abstract val isInitialized: Boolean
 
 }
+
+/**
+ * Ensures that the form is initialized.
+ * If the form is not initialized, throws an [IllegalStateException].
+ *
+ * @return this form instance if it is initialized.
+ * @throws IllegalStateException if the form is not initialized.
+ */
+val <T : AbstractForm> T.ensureInitialized: T
+    get() {
+        if (!initializer().isInitialized) {
+            throw IllegalStateException("Form is not initialized.")
+        }
+        return this
+    }
+
+/**
+ * Ensures that the form is not initialized.
+ * If the form is already initialized, throws an [IllegalStateException].
+ *
+ * @return this form instance if it is not initialized.
+ * @throws IllegalStateException if the form is already initialized.
+ */
+val <T : AbstractForm> T.ensureNotInitialized: T
+    get() {
+        if (initializer().isInitialized) {
+            throw IllegalStateException("Form is already initialized.")
+        }
+        return this
+    }
 
 /**
  * Shorthand for getting the specification of the form.
@@ -223,21 +255,18 @@ inline fun <reified T : AbstractForm> build(
  * Builds a form of type [T] using the provided form and data map.
  * The data map is processed to match the form's fields and their types.
  *
- * @param form the form to initialize with data.
+ * @param form the form to initialize with data. Must NOT be initialized yet.
  * @param initialData the data map to initialize the form with.
  * @param validationConfig the configuration for validation of the form data.
  * @return the initialized form of type [T].
+ * @throws IllegalStateException if the form is already initialized.
  */
+@Throws(IllegalStateException::class)
 fun <T : AbstractForm> build(
     form: T,
     initialData: Map<String, *>,
     validationConfig: ValidationConfig = ValidationConfig.Default,
-): T = form.apply {
-    initializer().initialize(
-        data = initialData,
-        validationConfig = validationConfig
-    )
-}
+): T = KForm.BuilderScope({ form }, validationConfig, initialData.toMutableMap()).build()
 
 /**
  * Copies the form with the provided data map.
@@ -246,11 +275,11 @@ fun <T : AbstractForm> build(
  * @param validationConfig the configuration for validation of the form data.
  * @return a new instance of the form with the provided data.
  */
-inline fun <T : AbstractForm> T.copy(
-    validationConfig: ValidationConfig = ValidationConfig.Default,
-    crossinline block: KForm.BuilderScope<out T>.() -> Unit = {}
+fun <T : AbstractForm> T.copy(
+    validationConfig: ValidationConfig = this.initializer().validationConfig,
+    block: KForm.BuilderScope<out T>.() -> Unit = {}
 ): T = build(this::class, validationConfig) {
     merge(this@copy)
-    block(this)
+    block(this@build)
 }
 

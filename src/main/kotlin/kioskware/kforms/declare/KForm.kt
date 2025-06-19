@@ -112,6 +112,8 @@ abstract class KForm : AbstractForm {
 
     private val _initializer = object : AbstractFormInitializer() {
         override fun onInitialize(data: Map<String, *>, validationConfig: ValidationConfig) {
+            // Ensure spec is resolved before initializing data
+            _spec // Accessing spec to ensure it is resolved
             _afterFirstInit = true // Mark that the form has been initialized at least once
             this@KForm._data = data.toFormDataMap(this@KForm, validationConfig)
             this@KForm._hashCode = null // Reset hash code to ensure it is recalculated
@@ -149,6 +151,7 @@ abstract class KForm : AbstractForm {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T> get(field: AbstractField<T>): T {
+        ensureInitialized
         // Check if the field belongs to this form
         // compare by classes not instances, because
         // fields are reused across instances of the same form class
@@ -157,12 +160,12 @@ abstract class KForm : AbstractForm {
         }
         // Check if the field is accessible
         // with current validation config
-        if (!initializer().validationConfig.params.accessScope.grantsAccessTo(field.spec.accessScope)){
-            throw ForbiddenFieldAccessException(field.spec.id, this::class)
+        if (!initializer().validationConfig.params.accessScope.grantsAccessTo(field.spec.accessScope)) {
+            throw ForbiddenFieldAccessException(field.id, this::class)
         }
-        return _data?.let {
+        return data().let {
             it[field.id] as T
-        } ?: throw IllegalStateException("Form data is not initialized.")
+        }
     }
 
     //region Any Methods
@@ -207,7 +210,7 @@ abstract class KForm : AbstractForm {
 
     //endregion
 
-    //region Field Declaration
+    //region Field Builder Scope
 
     /**
      * Declares single value field of type [T] with the given parameters.
@@ -226,8 +229,9 @@ abstract class KForm : AbstractForm {
      * @param sensitive Whether the field may hold sensitive data or not.
      */
     @KFormDsl
-    inner class FieldBuilderScope<T>(
+    inner class FieldBuilderScope<T> internal constructor(
         val type: Type<T>,
+        private val n: Int,
         @KFormDsl var defaultValue: T? = null,
         @KFormDsl var name: CharSequence? = null,
         @KFormDsl var description: CharSequence? = null,
@@ -249,8 +253,8 @@ abstract class KForm : AbstractForm {
          */
         @OptIn(ExperimentalTypeInference::class)
         @KFormDsl
-        fun extras(@BuilderInference builderAction: MutableMap<String, String>.() -> Unit)
-                = buildMap(builderAction).let { _extras = it }
+        fun extras(@BuilderInference builderAction: MutableMap<String, String>.() -> Unit) =
+            buildMap(builderAction).let { _extras = it }
 
         /**
          * Builds the field with the specified parameters.
@@ -270,9 +274,12 @@ abstract class KForm : AbstractForm {
             examples = examples,
             sensitive = sensitive,
             extras = _extras,
+            n = n
         )
 
     }
+
+    //endregion
 
     /**
      * Declares a field of type [ValueType] with the given parameters.
@@ -287,17 +294,20 @@ abstract class KForm : AbstractForm {
         if (_afterFirstInit) {
             throw FormDeclarationException("Cannot declare fields after the form is initialized.")
         }
-        // Check if the field is already cached in the spec cache
+        val n = _fieldN++
+        //Check if the field is already cached in the spec cache
         @Suppress("UNCHECKED_CAST")
         val cachedField =
-            _specCaches[this@KForm::class]?.fields?.get(_fieldN++) as? Field<ValueType>
+            _specCaches[this@KForm::class]?.fields?.find { (it as? Field<*>)?.n == n } as? Field<ValueType>
         if (cachedField != null) {
             return cachedField
         }
         // Create a new field if not cached
-        return FieldBuilderScope(this)
+        return FieldBuilderScope(this, n)
             .apply(block).build()
     }
+
+    // region Field declaration extensions
 
     /**
      * Declares a multi-value field of type [ElementType] with the given parameters.
@@ -684,10 +694,13 @@ abstract class KForm : AbstractForm {
         }
     }
 
+    //region Field class
+
     /**
      * Field of the form.
      */
     open inner class Field<T> internal constructor(
+        internal val n: Int,
         type: Type<T>,
         defaultValue: T?,
         name: CharSequence?,
@@ -724,7 +737,20 @@ abstract class KForm : AbstractForm {
             }
         }
 
-        operator fun getValue(thisRef: KForm, property: KProperty<*>): T = thisRef[this]
+        operator fun getValue(thisRef: KForm, property: KProperty<*>): T {
+            if (this.property == null) {
+                // If the property is not set, set it to the current property
+                this.property = property
+            } else if (this.property != property) {
+                // If the property is already set, but it's different from the current one,
+                // throw an exception
+                throw FormDeclarationException(
+                    "Field '${this.id}' is already declared with a different property: " +
+                            "${this.property?.name} vs ${property.name}"
+                )
+            }
+            return thisRef[this@Field]
+        }
 
         override fun spec(): FieldSpec<T> = _fieldSpec
 
@@ -738,6 +764,10 @@ abstract class KForm : AbstractForm {
         }
     }
 
+    //endregion
+
+    //region Form Builder
+
     /**
      * Builder scope for creating forms.
      */
@@ -745,11 +775,12 @@ abstract class KForm : AbstractForm {
     @PublishedApi
     internal constructor(
         formFactory: () -> T,
-        val validationConfig: ValidationConfig
+        val validationConfig: ValidationConfig,
+        initialData: MutableMap<String, Any?>? = null
     ) {
 
-        private val _form = formFactory()
-        private val _data: MutableMap<String, Any?> = LinkedHashMap(_form.fields.size)
+        private val _form = formFactory().ensureNotInitialized
+        private val _data: MutableMap<String, Any?> = initialData ?: LinkedHashMap(_form.fields.size)
 
         /**
          * Reference to the form being built.
@@ -865,9 +896,16 @@ abstract class KForm : AbstractForm {
          * This method should be called after all fields are set.
          * @return the built form of type [T].
          */
-        fun build(): T = build(_form, _data, validationConfig)
+        fun build(): T = _form.apply {
+            initializer().initialize(
+                data = _data,
+                validationConfig = validationConfig
+            )
+        }
 
     }
+
+    //endregion
 
 }
 
@@ -876,7 +914,7 @@ abstract class KForm : AbstractForm {
  * @param id the ID of the field.
  * @return the field if found, or null if not found.
  */
-fun KForm.getFieldById(id: String): AbstractField<*>? = fields.find { it.id == id }
+fun KForm.getFieldById(id: String): AbstractField<*>? = ensureInitialized.fields.find { it.id == id }
 
 /**
  * Gets the [KForm.Field] by its property.
