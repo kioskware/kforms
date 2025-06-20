@@ -39,13 +39,13 @@ class FieldPath(
         segments.lastOrNull()
     }
 
-    sealed class Segment {
+    sealed interface Segment {
 
-        data class Field(val field: AbstractField<*>) : Segment()
+        data class Field(val field: AbstractField<*>) : Segment
 
-        data class Index(val index: Int) : Segment()
+        data class Index(val index: Int) : Segment
 
-        data class MapKey(val key: Any?, val valueTarget: Boolean) : Segment()
+        data class MapKey(val key: Any?, val valueTarget: Boolean) : Segment
 
     }
 
@@ -55,6 +55,23 @@ class FieldPath(
         if (this.length > maxLength) this.take(maxLength) + "..." else this
 
 }
+
+//fun <F : AbstractForm, V> (() -> F).path(block: F.() -> V): Type<V> {
+//    block()
+//    return this
+//}
+//
+///**
+// * Creates a [FieldPath] for the given form class and block.
+// */
+//fun <F : AbstractForm, V> KClass<F>.path(block: F.() -> V)
+//= classFormFactory(this).path(block)
+//
+//fun main() {
+//
+//    Directory::class.path { subdirectories[0].files[0].name }
+//
+//}
 
 
 infix operator fun FieldPath?.plus(other: FieldPath): FieldPath {

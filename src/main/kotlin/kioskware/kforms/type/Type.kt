@@ -84,6 +84,11 @@ sealed interface Type<T> {
     val preProcessor: ((T) -> T)? get() = null
 
     /**
+     * Information about type complexity. Nested types or list types will have a higher complexity.
+     */
+    val complexity: Int
+
+    /**
      * Kind of type that stores a single value instance.
      */
     sealed interface Single<T> : Type<T>
@@ -97,7 +102,9 @@ sealed interface Type<T> {
     /**
      * Kind of type that stores a basic value instance without nested structures.
      */
-    sealed interface Basic<T> : Single<T>
+    sealed interface Basic<T> : Single<T> {
+        override val complexity: Int get() = 1 // Basic types have a complexity of 1
+    }
 
     /**
      * Kind of type that stores a complex value instance, which may include nested structures.
@@ -155,6 +162,17 @@ sealed interface Type<T> {
     }
 
     /**
+     * Represents an enum type of argument.
+     * @param kClass The enum class that the argument represents.
+     */
+    data class EnumType<T : Enum<T>>(
+        override val kClass: KClass<T>,
+    ) : Basic<T> {
+        override val typeId: Byte = 0x05
+        override val requirement: ValueRequirement<T>? = null
+    }
+
+    /**
      * Represents a binary type of argument.
      * @param preProcessor An optional pre-processor function that can be
      * applied to the binary data before it is validated or used.
@@ -166,17 +184,6 @@ sealed interface Type<T> {
     ) : Basic<BinarySource> {
         override val kClass = ByteArray::class
         override val typeId: Byte = 0x06
-    }
-
-    /**
-     * Represents an enum type of argument.
-     * @param kClass The enum class that the argument represents.
-     */
-    data class EnumType<T : Enum<T>>(
-        override val kClass: KClass<T>,
-    ) : Basic<T> {
-        override val typeId: Byte = 0x05
-        override val requirement: ValueRequirement<T>? = null
     }
 
     /**
@@ -192,6 +199,7 @@ sealed interface Type<T> {
     ) : Multi<List<T>> {
         override val kClass: KClass<List<T>> get() = List::class as KClass<List<T>>
         override val typeId: Byte get() = 0x07
+        override val complexity: Int get() = elementType.complexity * 10
     }
 
     /**
@@ -209,6 +217,10 @@ sealed interface Type<T> {
     ) : Complex<T> {
         override val kClass: KClass<T> by lazy { formFactory()::class as KClass<T> }
         override val typeId: Byte = 0x08
+        override val complexity: Int by lazy {
+            // Complexity is based on the number of fields in the form and their types.
+            formFactory().spec().fields.sumOf { it.spec().type.complexity }
+        }
     }
 
     /**
@@ -229,6 +241,7 @@ sealed interface Type<T> {
     ) : Multi<Map<K, V>> {
         override val kClass: KClass<Map<K, V>> get() = Map::class as KClass<Map<K, V>>
         override val typeId: Byte get() = 0x09
+        override val complexity: Int get() = (keyType.complexity + valueType.complexity) * 10 // Arbitrary complexity for maps
     }
 
     /**
@@ -242,6 +255,8 @@ sealed interface Type<T> {
         override val kClass = type.kClass
         override val typeId: Byte = (type.typeId + 0x0a).toByte() // Offset to differentiate nullable types
         override val requirement: ValueRequirement<T?>? = null
+        override val complexity: Int
+            get() = type.complexity + 1 // Increment complexity for nullable types
     }
 
 }

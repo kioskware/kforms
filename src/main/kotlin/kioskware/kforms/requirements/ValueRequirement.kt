@@ -366,6 +366,66 @@ fun isInRange(range: IntRange) = ValueRequirement.IntegerRange(
 )
 
 /**
+ * Requires the value to be at least the specified minimum value.
+ * @param value The minimum value (inclusive).
+ * @return A [ValueRequirement] that checks if the value is greater than or equal to the specified minimum value.
+ */
+fun isMin(value: Long) = ValueRequirement.IntegerRange(
+    min = value,
+    max = Long.MAX_VALUE
+)
+
+/**
+ * Requires the value to be at least the specified minimum value.
+ * @param value The minimum value (inclusive).
+ * @return A [ValueRequirement] that checks if the value is greater than or equal to the specified minimum value.
+ */
+fun isMin(value: Int) = ValueRequirement.IntegerRange(
+    min = value.toLong(),
+    max = Long.MAX_VALUE
+)
+
+/**
+ * Requires the value to be at most the specified maximum value.
+ * @param value The maximum value (inclusive).
+ * @return A [ValueRequirement] that checks if the value is less than or equal to the specified maximum value.
+ */
+fun isMax(value: Long) = ValueRequirement.IntegerRange(
+    min = Long.MIN_VALUE,
+    max = value
+)
+
+/**
+ * Requires the value to be at most the specified maximum value.
+ * @param value The maximum value (inclusive).
+ * @return A [ValueRequirement] that checks if the value is less than or equal to the specified maximum value.
+ */
+fun isMax(value: Int) = ValueRequirement.IntegerRange(
+    min = Long.MIN_VALUE,
+    max = value.toLong()
+)
+
+/**
+ * Requires the value to be at least the specified minimum value (for Double).
+ * @param value The minimum value (inclusive).
+ * @return A [ValueRequirement] that checks if the value is greater than or equal to the specified minimum value.
+ */
+fun isMin(value: Double) = ValueRequirement.DecimalRange(
+    min = value,
+    max = Double.MAX_VALUE
+)
+
+/**
+ * Requires the value to be at most the specified maximum value (for Double).
+ * @param value The maximum value (inclusive).
+ * @return A [ValueRequirement] that checks if the value is less than or equal to the specified maximum value.
+ */
+fun isMax(value: Double) = ValueRequirement.DecimalRange(
+    min = Double.MIN_VALUE,
+    max = value
+)
+
+/**
  * Requires the value to be in a specified range (for Double).
  * @param range The range to check against.
  * @return A [ValueRequirement] that checks if the value is within the specified range.
@@ -454,6 +514,26 @@ fun isLengthInRange(range: IntRange) = ValueRequirement.TextLengthRange(
 )
 
 /**
+ * Requires the text value to have a maximum length.
+ * @param max The maximum length of the text (inclusive).
+ * @return A [ValueRequirement] that checks if the text length is less than or equal to the specified maximum length.
+ */
+fun isMaxLength(max: Int) = ValueRequirement.TextLengthRange(
+    min = 0,
+    max = max
+)
+
+/**
+ * Requires the text value to have a minimum length.
+ * @param min The minimum length of the text (inclusive).
+ * @return A [ValueRequirement] that checks if the text length is greater than or equal to the specified minimum length.
+ */
+fun isMinLength(min: Int) = ValueRequirement.TextLengthRange(
+    min = min,
+    max = Int.MAX_VALUE
+)
+
+/**
  * Requires the text value to match the specified pattern.
  * @param pattern The regex pattern to match against.
  * @param caseSensitive Whether the check should be case-sensitive.
@@ -474,6 +554,26 @@ fun isByteSizeInRange(range: IntRange) = ValueRequirement.BinarySizeRange(
 )
 
 /**
+ * Requires the binary data size to have a maximum size.
+ * @param max The maximum size of the binary data in bytes (inclusive).
+ * @return A [ValueRequirement] that checks if the binary size is less than or equal to the specified maximum size.
+ */
+fun isMaxByteSize(max: Int) = ValueRequirement.BinarySizeRange(
+    min = 0,
+    max = max
+)
+
+/**
+ * Requires the binary data size to have a minimum size.
+ * @param min The minimum size of the binary data in bytes (inclusive).
+ * @return A [ValueRequirement] that checks if the binary size is greater than or equal to the specified minimum size.
+ */
+fun isMinByteSize(min: Int) = ValueRequirement.BinarySizeRange(
+    min = min,
+    max = Int.MAX_VALUE
+)
+
+/**
  * Requires the list size to be within the specified range.
  * @param range The range of valid sizes.
  * @return A [ValueRequirement] that checks if the list size is within the specified range.
@@ -481,6 +581,26 @@ fun isByteSizeInRange(range: IntRange) = ValueRequirement.BinarySizeRange(
 fun isListSizeInRange(range: IntRange) = ValueRequirement.ListSizeRange(
     min = range.first,
     max = range.last
+)
+
+/**
+ * Requires the list size to have a maximum size.
+ * @param max The maximum size of the list (inclusive).
+ * @return A [ValueRequirement] that checks if the list size is less than or equal to the specified maximum size.
+ */
+fun isMaxListSize(max: Int) = ValueRequirement.ListSizeRange(
+    min = 0,
+    max = max
+)
+
+/**
+ * Requires the list size to have a minimum size.
+ * @param min The minimum size of the list (inclusive).
+ * @return A [ValueRequirement] that checks if the list size is greater than or equal to the specified minimum size.
+ */
+fun isMinListSize(min: Int) = ValueRequirement.ListSizeRange(
+    min = min,
+    max = Int.MAX_VALUE
 )
 
 /**
@@ -513,14 +633,38 @@ val isUniqueValuesMap: ValueRequirement<Map<*, *>> = ValueRequirement.MapUniqueV
 fun isMimeTypeOneOf(vararg mimeTypes: MimeType): ValueRequirement<BinarySource> =
     ValueRequirement.BinaryOneOfMimeTypes(mimeTypes.toList())
 
+/**
+ * Negates the value requirement.
+ *
+ * @receiver The original [ValueRequirement] to negate.
+ * @return A [ValueRequirement.Not] that negates the original requirement.
+ */
 operator fun <T> ValueRequirement<T>.not(): ValueRequirement<T> =
     ValueRequirement.Not(this)
 
+/**
+ * Combines two value requirements using a logical AND operation.
+ * @receiver The first [ValueRequirement].
+ * @param other The second [ValueRequirement] to combine with.
+ * @return A [ValueRequirement] that combines both requirements using a logical AND operation.
+ */
 infix fun <T> ValueRequirement<T>.and(other: ValueRequirement<T>):
         ValueRequirement<T> = ValueRequirements(listOf(this, other), LogicOp.And)
 
+/**
+ * Combines two value requirements using a logical OR operation.
+ * @receiver The first [ValueRequirement].
+ * @param other The second [ValueRequirement] to combine with.
+ * @return A [ValueRequirement] that combines both requirements using a logical OR operation.
+ */
 infix fun <T> ValueRequirement<T>.or(other: ValueRequirement<T>):
         ValueRequirement<T> = ValueRequirements(listOf(this, other), LogicOp.Or)
 
+/**
+ * Combines two value requirements using a logical XOR operation.
+ * @receiver The first [ValueRequirement].
+ * @param other The second [ValueRequirement] to combine with.
+ * @return A [ValueRequirement] that combines both requirements using a logical XOR operation.
+ */
 infix fun <T> ValueRequirement<T>.xor(other: ValueRequirement<T>):
         ValueRequirement<T> = ValueRequirements(listOf(this, other), LogicOp.Xor)
