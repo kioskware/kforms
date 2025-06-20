@@ -9,7 +9,7 @@ package kioskware.kforms.common
  * @param original The map to be deeply copied.
  * @return A deep copy of the original map.
  */
-fun Map<String, Any?>.deepCopy(): Map<String, Any?> {
+internal fun Map<String, Any?>.deepCopy(): Map<String, Any?> {
     return mapValues { (_, value) ->
         when (value) {
             is Map<*, *> -> {
@@ -35,7 +35,7 @@ fun Map<String, Any?>.deepCopy(): Map<String, Any?> {
  * @param original The list to be deeply copied.
  * @return A deep copy of the original list.
  */
-fun List<*>.deepCopy(): List<Any?> {
+internal fun List<*>.deepCopy(): List<Any?> {
     return map { item ->
         when (item) {
             is Map<*, *> -> {
