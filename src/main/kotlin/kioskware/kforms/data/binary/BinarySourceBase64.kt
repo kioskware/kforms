@@ -1,12 +1,10 @@
-package kioskware.kforms.common
+package kioskware.kforms.data.binary
 
-import kioskware.kforms.data.binary.ArrayBinarySource
-import kioskware.kforms.data.binary.MimeType
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @OptIn(ExperimentalEncodingApi::class)
-fun parseBase64(input: String): ArrayBinarySource? {
+fun binarySourceFromBase64(input: String): BinarySource? {
     val base64Data: String
     val mimeType: String
 
@@ -28,6 +26,13 @@ fun parseBase64(input: String): ArrayBinarySource? {
         )
     } catch (e: IllegalArgumentException) {
         null // Invalid Base64
+    }
+}
+
+@OptIn(ExperimentalEncodingApi::class)
+fun BinarySource.asBase64String() : String {
+    return "data:$mimeType;base64," + inputStream.use { inputStream ->
+        Base64.encode(inputStream.readAllBytes())
     }
 }
 
