@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "kioskware.kforms"
-version = "1.0-SNAPSHOT"
+version = "v0.2.2-alpha"
 
 repositories {
     mavenCentral()
