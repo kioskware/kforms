@@ -1,9 +1,7 @@
-@file:Suppress("NOTHING_TO_INLINE")
-
 package kioskware.kforms.data.binary
 
-import kioskware.kforms.common.parseBase64
 import java.io.InputStream
+import java.io.IOException
 
 /**
  * Represents a source of binary data.
@@ -47,17 +45,8 @@ val BinarySource.isSizeKnown: Boolean
  */
 class ArrayBinarySource(
     override val mimeType: MimeType,
-    private val data: ByteArray
+    internal val data: ByteArray
 ) : BinarySource {
-
-    companion object {
-        /**
-         * Creates an [ArrayBinarySource] from a base64 encoded string.
-         * @param base64 The base64 encoded string representing the binary data.
-         * @return An [ArrayBinarySource] if the base64 string is valid, null otherwise.
-         */
-        inline fun fromBase64(base64: String): ArrayBinarySource? = parseBase64(base64)
-    }
 
     private val hashCode: Int by lazy {
         var result = mimeType.hashCode()
@@ -82,5 +71,21 @@ class ArrayBinarySource(
         if (mimeType != other.mimeType) return false
         if (!data.contentEquals(other.data)) return false
         return true
+    }
+}
+
+/**
+ * Converts the binary source to a byte array.
+ * If the binary source is an [ArrayBinarySource], it returns the data directly.
+ * Otherwise, it reads the input stream and returns the bytes.
+ * The input stream is closed after reading.
+ *
+ * @return A byte array containing the binary data.
+ * @throws IOException If an I/O error occurs while reading the input stream.
+ */
+fun BinarySource.toByteArray(): ByteArray {
+    return when (this) {
+        is ArrayBinarySource -> this.data
+        else -> inputStream.use { it.readBytes() }
     }
 }
