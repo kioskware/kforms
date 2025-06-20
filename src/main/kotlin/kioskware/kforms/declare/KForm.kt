@@ -245,7 +245,16 @@ abstract class KForm : AbstractForm {
         @KFormDsl var sensitive: Boolean = false
     ) {
 
-        private var _extras: Map<String, String>? = null
+        private val _extras: MutableMap<String, String> = mutableMapOf()
+
+        /**
+         * Puts an extra key-value pair into the field.
+         * Extras are additional metadata for the field,
+         * used for documentation or for AI models.
+         */
+        fun putExtra(key: String, value: String) {
+            _extras[key] = value
+        }
 
         /**
          * Sets the extras for the field.
@@ -254,7 +263,7 @@ abstract class KForm : AbstractForm {
         @OptIn(ExperimentalTypeInference::class)
         @KFormDsl
         fun extras(@BuilderInference builderAction: MutableMap<String, String>.() -> Unit) =
-            buildMap(builderAction).let { _extras = it }
+            buildMap(builderAction).let { _extras.putAll(it) }
 
         /**
          * Builds the field with the specified parameters.
@@ -273,7 +282,7 @@ abstract class KForm : AbstractForm {
             accessScope = accessScope,
             examples = examples,
             sensitive = sensitive,
-            extras = _extras,
+            extras = _extras.toMap(),
             n = n
         )
 
@@ -724,7 +733,7 @@ abstract class KForm : AbstractForm {
                 override val type get() = type
                 override val owner get() = this@KForm
                 override val defaultValue get() = defaultValue
-                override val name get() = name
+                override val docName get() = name
                 override val description get() = description
                 override val descriptionDetailed get() = descriptionDetailed
                 override val orderKey get() = orderKey

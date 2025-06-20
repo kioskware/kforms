@@ -10,6 +10,7 @@ import kioskware.kforms.scopes.AccessScope
 import kioskware.kforms.scopes.grantsAccessTo
 import kioskware.kforms.type.Type
 import kioskware.kforms.type.classFormFactory
+import kioskware.kforms.data.binary.BinarySource
 
 /**
  * Parameters for form validation.
@@ -82,7 +83,19 @@ enum class ValidationMode {
 }
 
 /**
- * Represents a map storing actual form data.
+ * Stores form data in KForm Data format.
+ * The map will only contain KForm supported [Type]s:
+ *
+ * - [Type.Bool] - kotlin [Boolean]
+ * - [Type.Integer] - kotlin [Long]
+ * - [Type.Decimal] - kotlin [Double]
+ * - [Type.Text] - kotlin [String]
+ * - [Type.EnumType] - enum constant of the specified enum class
+ * - [Type.Binary] - [BinarySource] containing binary data
+ * - [Type.FormType] - [AbstractForm] instance
+ * - [Type.ListType] - [List] of values of the specified type
+ * - [Type.MapType] - [Map] of values and keys of the specified types
+ * - [Type.Nullable] - nullable type of any of the above types
  *
  */
 interface FormDataMap : Map<String, Any?> {
@@ -149,6 +162,7 @@ fun <T : AbstractForm> Map<String, Any?>.toFormDataMap(
         override val form: T = form
         override val validationConfig: ValidationConfig = validationConfig
         override fun toString(): String = "FormDataMap(${this@toFormDataMap})"
+
     }
 }
 
