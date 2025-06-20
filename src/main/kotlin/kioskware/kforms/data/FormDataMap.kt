@@ -8,7 +8,6 @@ import kioskware.kforms.requirements.ensureValid
 import kioskware.kforms.scopes.grantsAccessTo
 import kioskware.kforms.type.Type
 import kioskware.kforms.type.classFormFactory
-import java.io.Writer
 
 /**
  * Stores form data in KForm Data format.
@@ -76,7 +75,7 @@ fun <T : AbstractForm> Map<String, Any?>.toFormDataMap(
                     )
                 } else {
                     // If the field is required and no value is provided, throw an exception
-                    if (field.isRequired && validationConfig.params.mode == ValidationMode.Full) {
+                    if (field.isRequired && validationConfig.params.mode == ValidationMode.Create) {
                         throw MissingFieldValueException(
                             fieldPath = validationConfig.parentPath + field
                         )

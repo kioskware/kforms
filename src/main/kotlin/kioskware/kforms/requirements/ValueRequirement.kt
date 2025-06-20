@@ -310,16 +310,16 @@ data class ValueRequirements<T>(
 fun <T> isEqual(vararg to: T) = ValueRequirement.OneOf(to.toList())
 
 /**
- * Requires the value to be equal to the specified value.
- * @param to The value that the value should be equal to.
- * @return A [ValueRequirement] that checks if the value is equal to the specified value.
+ * Requires the value to be equal to true.
+ * This is a shorthand for `isEqual(true)`.
+ * @return A [ValueRequirement] that checks if the value is true.
  */
 val isTrue = isEqual(true)
 
 /**
- * Requires the value to be equal to the specified value.
- * @param to The value that the value should be equal to.
- * @return A [ValueRequirement] that checks if the value is equal to the specified value.
+ * Requires the value to be equal to false.
+ * This is a shorthand for `isEqual(false)`.
+ * @return A [ValueRequirement] that checks if the value is false.
  */
 val isFalse = isEqual(false)
 

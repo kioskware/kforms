@@ -5,11 +5,11 @@ import kioskware.kforms.scopes.AccessScope
 
 /**
  * Parameters for form validation.
- * @property mode the validation mode to use. Default is [ValidationMode.Full].
+ * @property mode the validation mode to use. Default is [ValidationMode.Create].
  * @property accessScope if provided, only fields accessible in this scope will be validated.
  */
 data class ValidationParams(
-    val mode: ValidationMode = ValidationMode.Full,
+    val mode: ValidationMode = ValidationMode.Create,
     val accessScope: AccessScope? = null
 ) {
     companion object {
@@ -56,13 +56,15 @@ enum class ValidationMode {
      * Data will be fully validated.
      * Checking for missing required fields and validating all values.
      */
-    Full,
+    Create,
 
     /**
      * Data will be validated only for values that are set.
      * In this mode, missing required fields will not be reported as errors.
+     *
+     * Designed for building edit forms, storing only fields that have been modified.
      */
-    Provided,
+    Edit,
 
     /**
      * Data will not be validated at all.
