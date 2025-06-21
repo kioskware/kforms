@@ -5,6 +5,7 @@ import kioskware.kforms.copy
 import kioskware.kforms.declare.KForm
 import kioskware.kforms.declare.Option
 import kioskware.kforms.declare.optionSpec
+import kioskware.kforms.type
 
 internal open class File : KForm() {
 
@@ -76,4 +77,5 @@ fun main() {
     }
 
     println("File Name: ${file.name}")
+    println("Complexity: ${Directory().type.complexity}")
 }

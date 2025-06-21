@@ -236,7 +236,7 @@ abstract class KForm : AbstractForm {
         @KFormDsl var name: CharSequence? = null,
         @KFormDsl var description: CharSequence? = null,
         @KFormDsl var descriptionDetailed: CharSequence? = null,
-        @KFormDsl var orderKey: Int = 0,
+        @KFormDsl var orderKey: Int = n,
         @KFormDsl var id: String = "",
         @KFormDsl var enabledRules: FieldRequirements = FieldRequirements.None,
         @KFormDsl var accessScope: AccessScope? = AccessScope.None,

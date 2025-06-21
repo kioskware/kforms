@@ -6,6 +6,7 @@ import kioskware.kforms.AbstractForm
 import kioskware.kforms.FormDeclarationException
 import kioskware.kforms.data.binary.BinarySource
 import kioskware.kforms.requirements.ValueRequirement
+import java.lang.reflect.InvocationTargetException
 import kotlin.reflect.KClass
 import kotlin.reflect.jvm.isAccessible
 
@@ -219,7 +220,17 @@ sealed interface Type<T> {
         override val typeId: Byte = 0x08
         override val complexity: Int by lazy {
             // Complexity is based on the number of fields in the form and their types.
-            formFactory().spec().fields.sumOf { it.spec().type.complexity }
+            try {
+                formFactory().spec().fields.sumOf { it.spec().type.complexity }
+            } catch (e: StackOverflowError) {
+                // Catch potential stack overflow errors when accessing fields recursively
+                // TODO: Handle this more gracefully
+                Int.MAX_VALUE
+            } catch (e: InvocationTargetException) {
+                // This also may happen when infinite recursion occurs in form fields
+                // TODO: Handle this more gracefully
+                Int.MAX_VALUE
+            }
         }
     }
 
